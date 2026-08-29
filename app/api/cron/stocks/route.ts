@@ -34,8 +34,8 @@ async function checkStocks() {
   console.log("Checking stocks...");
 
   const emailKey = process.env.EMAIL_KEY;
-  const emailTo = process.env.STOCK_EMAIL_TO;
-  const emailFrom = process.env.STOCK_EMAIL_FROM ?? "onboarding@resend.dev";
+  const emailTo = process.env.STOCK_EMAIL_TO ?? 'amitlapid711@gmail.com';
+  const emailFrom = process.env.STOCK_EMAIL_FROM ?? 'amitlapid711@gmail.com';
 
   if (!emailKey || !emailTo) {
     throw new Error("EMAIL_KEY and STOCK_EMAIL_TO must be configured");
