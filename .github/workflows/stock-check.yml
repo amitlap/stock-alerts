@@ -1,0 +1,20 @@
+name: Check stocks
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+
+  # Allows you to run it manually from GitHub
+  workflow_dispatch:
+
+jobs:
+  check-stocks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger stock check
+        run: |
+          curl --fail-with-body \
+            -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://YOUR-APP.vercel.app/api/cron/stocks
