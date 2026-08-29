@@ -58,5 +58,5 @@ async function checkStocks() {
     html: `<h1>Stock price update</h1><table><thead><tr><th>Symbol</th><th>Price</th><th>Change</th></tr></thead><tbody>${stockRows}</tbody></table>`,
   });
 
-  console.log("Stock check completed");
+  console.log("Stock check completed!");
 }
