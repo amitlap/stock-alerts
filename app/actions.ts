@@ -50,8 +50,8 @@ export async function saveOrder(formData: FormData) {
   const resend = new Resend(apiKey);
 
   await resend.emails.send({
-    from: "onboarding@resend.dev",
-    to: "zusagi70@gmail.com",
+    from: "amitlapid711@gmail.com",
+    to: "amitlapid711@gmail.com",
     subject: `Stock Order: ${ticker}`,
     html: `s
       <p>New order submitted.</p>
