@@ -10,11 +10,46 @@ on:
 jobs:
   check-stocks:
     runs-on: ubuntu-latest
+    env:
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      EMAIL_KEY: ${{ secrets.EMAIL_KEY }}
+      STOCK_EMAIL_TO: ${{ secrets.STOCK_EMAIL_TO }}
+      STOCK_EMAIL_FROM: ${{ secrets.STOCK_EMAIL_FROM }}
 
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Start application
+        run: npm run dev > /tmp/stock-check.log 2>&1 &
+
+      - name: Wait for cron route
+        run: |
+          for attempt in {1..30}; do
+            status=$(curl --silent --output /dev/null --write-out "%{http_code}" http://127.0.0.1:3000/api/cron/stocks || true)
+
+            if [ "$status" = "401" ]; then
+              exit 0
+            fi
+
+            sleep 2
+          done
+
+          cat /tmp/stock-check.log
+          exit 1
+
       - name: Trigger stock check
         run: |
           curl --fail-with-body \
             -X GET \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            https://YOUR-APP.vercel.app/api/cron/stocks
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            http://127.0.0.1:3000/api/cron/stocks

@@ -27,6 +27,7 @@ GitHub Actions runs the stock email task every 15 minutes. Configure these repos
 - `EMAIL_KEY`: Resend API key.
 - `STOCK_EMAIL_TO`: recipient email address.
 - `STOCK_EMAIL_FROM` (optional): verified Resend sender address. Defaults to `onboarding@resend.dev`.
+- `CRON_SECRET`: bearer token used by the scheduled stock-check workflow and `/api/cron/stocks`.
 
 Run the task locally with `npm run stocks:email` after defining the same values in `.env`.
 
