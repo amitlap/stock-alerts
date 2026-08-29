@@ -17,4 +17,4 @@ jobs:
           curl --fail-with-body \
             -X GET \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            https://YOUR-APP.vercel.app/api/cron/stocks
+            https://stock-alerts-alpha.vercel.app/api/cron/stocks
