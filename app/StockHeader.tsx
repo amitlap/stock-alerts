@@ -31,8 +31,8 @@ export default function StockHeader() {
       <Stack direction="row" spacing={3} sx={{ alignItems: "center", flexWrap: "wrap" }}>
         {stocks.map((stock) => (
           <Stack key={stock.symbol} direction="row" spacing={0.5} sx={{ alignItems: "baseline" }}>
-            <Typography fontWeight="bold">{stock.symbol}</Typography>
-            <Typography color={(stock.change ?? 0) >= 0 ? "success.main" : "error.main"}>
+            <div>{stock.symbol}</div>
+            <Typography sx={{ color: (stock.change ?? 0) >= 0 ? "success.main" : "error.main" }}>
               ${stock.price?.toFixed(2)}
             </Typography>
           </Stack>
