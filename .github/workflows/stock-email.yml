@@ -1,0 +1,28 @@
+name: Send stock email
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  send-stock-email:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run stocks:email
+        env:
+          EMAIL_KEY: ${{ secrets.EMAIL_KEY }}
+          STOCK_EMAIL_TO: ${{ secrets.STOCK_EMAIL_TO }}
+          STOCK_EMAIL_FROM: ${{ secrets.STOCK_EMAIL_FROM }}

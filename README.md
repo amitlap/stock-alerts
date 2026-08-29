@@ -20,6 +20,16 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Scheduled Stock Emails
+
+GitHub Actions runs the stock email task every 15 minutes. Configure these repository secrets under **Settings > Secrets and variables > Actions**:
+
+- `EMAIL_KEY`: Resend API key.
+- `STOCK_EMAIL_TO`: recipient email address.
+- `STOCK_EMAIL_FROM` (optional): verified Resend sender address. Defaults to `onboarding@resend.dev`.
+
+Run the task locally with `npm run stocks:email` after defining the same values in `.env`.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
