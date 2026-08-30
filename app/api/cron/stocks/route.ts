@@ -12,10 +12,11 @@ export async function GET(request: Request) {
   //}
 
   try {
-    await checkStocks();
+    const email = await checkStocks();
 
     return NextResponse.json({
       success: true,
+      email,
     });
   } catch (error) {
     console.error("Stock check failed:", error);
@@ -36,8 +37,8 @@ async function checkStocks() {
   console.log("Checking stocks...");
 
   const emailKey = process.env.EMAIL_KEY;
-  const emailTo = process.env.STOCK_EMAIL_TO ?? 'amitlapid711@gmail.com';
-  const emailFrom = process.env.STOCK_EMAIL_FROM ?? 'amitlapid711@gmail.com';
+  const emailTo = 'amitlapid711@gmail.com';
+  const emailFrom = 'onboarding@resend.dev';
 
   if (!emailKey || !emailTo) {
     throw new Error("EMAIL_KEY and STOCK_EMAIL_TO must be configured");
@@ -51,12 +52,18 @@ async function checkStocks() {
     )
     .join("");
 
-  await new Resend(emailKey).emails.send({
+  const { data, error } = await new Resend(emailKey).emails.send({
     from: emailFrom,
     to: emailTo,
     subject: "Stock price update",
     html: `<h1>Stock price update</h1><table><thead><tr><th>Symbol</th><th>Price</th><th>Change</th></tr></thead><tbody>${stockRows}</tbody></table>`,
   });
 
+  if (error) {
+    throw new Error(error.message);
+  }
+
   console.log("Stock check completed!");
+
+  return data;
 }
