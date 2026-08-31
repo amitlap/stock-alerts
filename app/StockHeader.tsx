@@ -34,6 +34,7 @@ export default function StockHeader() {
     try {
       const res = await fetch("/api/cron/stocks");
       const data = await res.json();
+      console.log("Stock check response:", data);
       if (!data.success) {
         throw new Error(data.error ?? "Stock check failed");
       }

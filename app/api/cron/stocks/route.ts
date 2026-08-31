@@ -37,10 +37,10 @@ async function checkStocks() {
   console.log("Checking stocks...");
 
   const emailKey = process.env.EMAIL_KEY;
-  const emailTo = ['amitlapid711@gmail.com', 'zusagi70@gmail.com'];
+  //const emailTo = ['amitlapid711@gmail.com', 'zusagi70@gmail.com'];
   const emailFrom = 'onboarding@resend.dev';
 
-  if (!emailKey || emailTo.length === 0) {
+  if (!emailKey) {
     throw new Error("EMAIL_KEY and STOCK_EMAIL_TO must be configured");
   }
 
@@ -54,7 +54,7 @@ async function checkStocks() {
 
   const { data, error } = await new Resend(emailKey).emails.send({
     from: emailFrom,
-    to: emailTo,
+    to: 'amitlapid711@gmail.com',
     subject: "Stock price update",
     html: `<h1>Stock price update</h1><table><thead><tr><th>Symbol</th><th>Price</th><th>Change</th></tr></thead><tbody>${stockRows}</tbody></table>`,
   });
