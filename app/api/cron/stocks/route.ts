@@ -54,7 +54,7 @@ async function checkStocks() {
 
   const { data, error } = await new Resend(emailKey).emails.send({
     from: emailFrom,
-    to: 'amitlapid711@gmail.com',
+    to: 'amitlapid711@gmail.com1',
     subject: "Stock price update",
     html: `<h1>Stock price update</h1><table><thead><tr><th>Symbol</th><th>Price</th><th>Change</th></tr></thead><tbody>${stockRows}</tbody></table>`,
   });
