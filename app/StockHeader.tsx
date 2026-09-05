@@ -2,31 +2,16 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button, Paper, Stack, Typography } from "@mui/material";
-import { getStockPrices } from "./actions";
 import { TICKERS } from "./constants";
+import { getLatestStockPrices } from "./actions";
 
-type StockPrice = Awaited<ReturnType<typeof getStockPrices>>[number];
+type StockPrice = Awaited<ReturnType<typeof getLatestStockPrices>>[number];
 
 export default function StockHeader() {
   const [stocks, setStocks] = useState<StockPrice[]>([]);
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(false);
   const [emailResult, setEmailResult] = useState<string | null>(null);
-
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      setStocks(await getStockPrices(TICKERS));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    const initialRefreshId = window.setTimeout(refresh, 0);
-
-    return () => window.clearTimeout(initialRefreshId);
-  }, [refresh]);
 
   async function handleCheckStocks() {
     setChecking(true);
@@ -63,7 +48,14 @@ export default function StockHeader() {
           <Button
             variant="outlined"
             size="small"
-            onClick={handleCheckStocks}
+            onClick={async () => {
+              setLoading(true);
+              try {
+                setStocks(await getLatestStockPrices(TICKERS));
+              } finally {
+                setLoading(false);
+              }
+            }}
             disabled={checking}
           >
             {checking ? "Checking..." : "Check Stocks"}
@@ -71,10 +63,10 @@ export default function StockHeader() {
           <Button
             variant="outlined"
             size="small"
-            onClick={refresh}
-            disabled={loading}
+            onClick={handleCheckStocks}
+            disabled={checking}
           >
-            {loading ? "Refreshing..." : "Refresh"}
+            {checking ? "Sending..." : "Send Email"}
           </Button>
         </Stack>
       </Stack>

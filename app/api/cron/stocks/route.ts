@@ -37,7 +37,7 @@ async function checkStocks() {
   console.log("Checking stocks...");
 
   const emailKey = process.env.RESEND_API_KEY;
-  const emailTo = ['amitlapid711@gmail.com', 'zusagi70@gmail.com'];
+  const emailTo = ['Zusagi70@gmail.com','amitlapid711@gmail.com'];
   const emailFrom = 'alerts@stock-alerts-alpha.com';
 
   if (!emailKey) {
