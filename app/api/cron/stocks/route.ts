@@ -41,7 +41,7 @@ async function checkStocks() {
   const emailFrom = 'alerts@stock-alerts-alpha.com';
 
   if (!emailKey) {
-    throw new Error("RESEND_API_KEY and STOCK_EMAIL_TO must be configured");
+    throw new Error("RESEND_API_KEY and STOCK_EMAIL_TO must be configured1");
   }
 
   const stocks = await getLatestStockPrices(TICKERS);
