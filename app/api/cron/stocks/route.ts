@@ -36,12 +36,12 @@ export async function GET(request: Request) {
 async function checkStocks() {
   console.log("Checking stocks...");
 
-  const emailKey = process.env.EMAIL_KEY;
-  //const emailTo = ['amitlapid711@gmail.com', 'zusagi70@gmail.com'];
-  const emailFrom = 'onboarding@resend.dev';
+  const emailKey = process.env.RESEND_API_KEY;
+  const emailTo = ['amitlapid711@gmail.com', 'zusagi70@gmail.com'];
+  const emailFrom = 'alerts@stock-alerts-alpha.com';
 
   if (!emailKey) {
-    throw new Error("EMAIL_KEY and STOCK_EMAIL_TO must be configured");
+    throw new Error("RESEND_API_KEY and STOCK_EMAIL_TO must be configured");
   }
 
   const stocks = await getLatestStockPrices(TICKERS);
@@ -54,7 +54,7 @@ async function checkStocks() {
 
   const { data, error } = await new Resend(emailKey).emails.send({
     from: emailFrom,
-    to: 'amitlapid711@gmail.com',
+    to: emailTo,
     subject: "Stock price update",
     html: `<h1>Stock price update</h1><table><thead><tr><th>Symbol</th><th>Price</th><th>Change</th></tr></thead><tbody>${stockRows}</tbody></table>`,
   });

@@ -38,10 +38,10 @@ export async function getStockPrices(tickers: string[]) {
 }
 
 export async function saveOrder(formData: FormData) {
-  const apiKey = process.env.EMAIL_KEY;
+  const apiKey = process.env.RESEND_API_KEY;
 
   if (!apiKey) {
-    throw new Error("EMAIL_KEY is not set in .env");
+    throw new Error("RESEND_API_KEY is not set in .env");
   }
 
   const ticker = String(formData.get("ticker") ?? "");
