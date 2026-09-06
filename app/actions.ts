@@ -9,10 +9,24 @@ const yahooFinance = new YahooFinance();
 export async function getLatestStockPrices(tickers: string[]) {
   const quotes = await yahooFinance.quote(tickers);
 
-  return quotes.map((quote) => ({
+  const list = quotes.map((quote) => ({
     symbol: quote.symbol,
     price: quote.regularMarketPrice,
     change: quote.regularMarketChange,
     changePercent: quote.regularMarketChangePercent,
   }));
+
+  console.log(list);
+
+  return list;
 }
+
+type StockPrice = Awaited<ReturnType<typeof getLatestStockPrices>>[number];
+
+export function isBigChange(stock: StockPrice) {
+  if (!stock) return false;
+  if (stock.symbol !== "NVDA") return false;
+  
+  return (stock.change ?? 0) > 2 || (stock.price ?? 0) > 233;
+}
+

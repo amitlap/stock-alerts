@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
-import { getLatestStockPrices } from "../../../actions";
+import { getLatestStockPrices, isBigChange } from "../../../actions";
 import { TICKERS } from "../../../constants";
 
 export async function GET(request: Request) {
@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   //}
 
   try {
-    const email = await checkStocks();
+    const email = await checkStocks(false);
 
     return NextResponse.json({
       success: true,
@@ -33,7 +33,7 @@ export async function GET(request: Request) {
   }
 }
 
-async function checkStocks() {
+async function checkStocks(sendAnyway: boolean) {
   console.log("Checking stocks...");
 
   const emailKey = process.env.RESEND_API_KEY;
@@ -52,7 +52,12 @@ async function checkStocks() {
     )
     .join("");
 
-  const { data, error } = await new Resend(emailKey).emails.send({
+    const nvdaStock = stocks.find(stock => stock.symbol === "NVDA") ?? null;
+
+    if (!nvdaStock || !isBigChange(nvdaStock) || !sendAnyway) {
+      throw new Error("No significant change in NVDA stock.");
+    }
+      const { data, error } = await new Resend(emailKey).emails.send({
     from: emailFrom,
     to: emailTo,
     subject: "Stock price update",
