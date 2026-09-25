@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
-import { getLatestStockPrices, isBigChange } from "../../../actions";
+import { getLatestStockPrices } from "../../../actions";
+import { isBigChange } from "../../../stockUtils";
 import { TICKERS } from "../../../constants";
 
 export async function GET(request: Request) {
@@ -11,8 +12,17 @@ export async function GET(request: Request) {
   //  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   //}
 
+  return respond(false);
+}
+
+export async function POST(request: Request) {
+  const body = await request.json().catch(() => ({}));
+  return respond(body?.sendAnyway === true);
+}
+
+async function respond(sendAnyway: boolean) {
   try {
-    const email = await checkStocks(false);
+    const email = await checkStocks(sendAnyway);
 
     return NextResponse.json({
       success: true,
@@ -52,12 +62,14 @@ async function checkStocks(sendAnyway: boolean) {
     )
     .join("");
 
-    const nvdaStock = stocks.find(stock => stock.symbol === "NVDA") ?? null;
+  const nvdaStock = stocks.find(stock => stock.symbol === "NVDA") ?? null;
 
-    if (!nvdaStock || !isBigChange(nvdaStock) || !sendAnyway) {
-      throw new Error("No significant change in NVDA stock.");
-    }
-      const { data, error } = await new Resend(emailKey).emails.send({
+  if (!sendAnyway && (!nvdaStock || !isBigChange(nvdaStock))) {
+    console.log("NVDA change not significant, skipping email.");
+    return null;
+  }
+
+  const { data, error } = await new Resend(emailKey).emails.send({
     from: emailFrom,
     to: emailTo,
     subject: "Stock price update",

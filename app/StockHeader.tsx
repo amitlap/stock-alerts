@@ -4,8 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Button, Paper, Stack, Typography } from "@mui/material";
 import { TICKERS } from "./constants";
 import { getLatestStockPrices } from "./actions";
-
-type StockPrice = Awaited<ReturnType<typeof getLatestStockPrices>>[number];
+import type { StockPrice } from "./stockUtils";
 
 export default function StockHeader() {
   const [stocks, setStocks] = useState<StockPrice[]>([]);
@@ -17,7 +16,11 @@ export default function StockHeader() {
     setChecking(true);
     setEmailResult(null);
     try {
-      const res = await fetch("/api/cron/stocks");
+      const res = await fetch("/api/cron/stocks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sendAnyway: true }),
+      });
       const data = await res.json();
       console.log("Stock check response:", data);
       if (!data.success) {
