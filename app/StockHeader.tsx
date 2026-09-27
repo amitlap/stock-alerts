@@ -4,13 +4,15 @@ import { useCallback, useEffect, useState } from "react";
 import { Button, Paper, Stack, Typography } from "@mui/material";
 import { TICKERS } from "./constants";
 import { getLatestStockPrices } from "./actions";
-import type { StockPrice } from "./stockUtils";
+import type { Alert, StockPrice } from "./stockUtils";
 
 export default function StockHeader() {
   const [stocks, setStocks] = useState<StockPrice[]>([]);
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [checkingAlerts, setCheckingAlerts] = useState(false);
   const [emailResult, setEmailResult] = useState<string | null>(null);
+  const [alertsResult, setAlertsResult] = useState<string | null>(null);
 
   async function handleCheckStocks() {
     setChecking(true);
@@ -33,6 +35,39 @@ export default function StockHeader() {
       );
     } finally {
       setChecking(false);
+    }
+  }
+
+  async function handleCheckAlerts() {
+    setCheckingAlerts(true);
+    setAlertsResult(null);
+    try {
+      const [stockPrices, res] = await Promise.all([
+        getLatestStockPrices(TICKERS),
+        fetch("/api/cron/stocks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sendAnyway: false }),
+        }),
+      ]);
+      setStocks(stockPrices);
+      const data = await res.json();
+      console.log("Alerts check response:", data);
+      if (!data.success) {
+        throw new Error(data.error ?? "Alerts check failed");
+      }
+      const matchingAlerts: Alert[] = data.matchingAlerts ?? [];
+      setAlertsResult(
+        matchingAlerts.length === 0
+          ? "No alerts match the current prices."
+          : `Emailed: ${matchingAlerts.map((alert) => `${alert.stock} ${alert.operator ?? "="} ${alert.price} (${alert.email})`).join(", ")}`,
+      );
+    } catch (error) {
+      setAlertsResult(
+        `Alerts check failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    } finally {
+      setCheckingAlerts(false);
     }
   }
 
@@ -71,11 +106,24 @@ export default function StockHeader() {
           >
             {checking ? "Sending..." : "Send Email"}
           </Button>
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={handleCheckAlerts}
+            disabled={checkingAlerts}
+          >
+            {checkingAlerts ? "Checking..." : "check current stocks"}
+          </Button>
         </Stack>
       </Stack>
       {emailResult && (
         <Typography variant="body2" sx={{ mt: 1 }}>
           {emailResult}
+        </Typography>
+      )}
+      {alertsResult && (
+        <Typography variant="body2" sx={{ mt: 1 }}>
+          {alertsResult}
         </Typography>
       )}
     </Paper>

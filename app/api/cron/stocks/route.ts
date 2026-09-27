@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { getLatestStockPrices } from "../../../actions";
-import { isBigChange } from "../../../stockUtils";
+import { getMatchingAlerts, isBigChange } from "../../../stockUtils";
 import { TICKERS } from "../../../constants";
+import { createClient } from "@/utils/supabase/server";
+import { cookies } from "next/headers";
 
 export async function GET(request: Request) {
   // Verify that the request comes from our GitHub Action
@@ -22,11 +24,13 @@ export async function POST(request: Request) {
 
 async function respond(sendAnyway: boolean) {
   try {
-    const email = await checkStocks(sendAnyway);
+    const { email, matchingAlerts, alertEmails } = await checkStocks(sendAnyway);
 
     return NextResponse.json({
       success: true,
       email,
+      matchingAlerts,
+      alertEmails,
     });
   } catch (error) {
     console.error("Stock check failed:", error);
@@ -62,11 +66,29 @@ async function checkStocks(sendAnyway: boolean) {
     )
     .join("");
 
+  const cookieStore = await cookies();
+  const supabase = createClient(cookieStore);
+  const { data: alerts, error: alertsError } = await supabase
+    .from("alerts")
+    .select("stock, email, price, operator");
+
+  if (alertsError) {
+    throw new Error(alertsError.message);
+  }
+
+  const matchingAlerts = getMatchingAlerts(alerts ?? [], stocks);
+  console.log(
+    "Stocks fulfilling alert conditions:",
+    matchingAlerts.map((alert) => `${alert.stock} ${alert.operator ?? "="} ${alert.price}`),
+  );
+
+  const alertEmails = await sendAlertEmails(matchingAlerts, stocks, emailKey, emailFrom);
+
   const nvdaStock = stocks.find(stock => stock.symbol === "NVDA") ?? null;
 
   if (!sendAnyway && (!nvdaStock || !isBigChange(nvdaStock))) {
     console.log("NVDA change not significant, skipping email.");
-    return null;
+    return { email: null, matchingAlerts, alertEmails };
   }
 
   const { data, error } = await new Resend(emailKey).emails.send({
@@ -82,5 +104,46 @@ async function checkStocks(sendAnyway: boolean) {
 
   console.log("Stock check completed!");
 
-  return data;
+  return { email: data, matchingAlerts, alertEmails };
 }
+
+// Sends one email per alert address, listing the stocks whose condition it matched.
+async function sendAlertEmails(
+  matchingAlerts: Awaited<ReturnType<typeof getMatchingAlerts>>,
+  stocks: Awaited<ReturnType<typeof getLatestStockPrices>>,
+  emailKey: string,
+  emailFrom: string,
+) {
+  const alertsByEmail = new Map<string, typeof matchingAlerts>();
+  for (const alert of matchingAlerts) {
+    alertsByEmail.set(alert.email, [...(alertsByEmail.get(alert.email) ?? []), alert]);
+  }
+
+  const resend = new Resend(emailKey);
+  const results = [];
+
+  for (const [email, alertsForEmail] of alertsByEmail) {
+    const rows = alertsForEmail
+      .map((alert) => {
+        const stock = stocks.find((s) => s.symbol === alert.stock);
+        return `<tr><td>${alert.stock}</td><td>${alert.operator ?? "="} ${alert.price}</td><td>$${stock?.price?.toFixed(2) ?? "N/A"}</td></tr>`;
+      })
+      .join("");
+
+    const { data, error } = await resend.emails.send({
+      from: emailFrom,
+      to: [email],
+      subject: "Your stock alert was triggered",
+      html: `<h1>Stock alert triggered</h1><table><thead><tr><th>Symbol</th><th>Condition</th><th>Current price</th></tr></thead><tbody>${rows}</tbody></table>`,
+    });
+
+    if (error) {
+      console.error(`Failed to send alert email to ${email}:`, error.message);
+    }
+
+    results.push({ email, data, error: error?.message ?? null });
+  }
+
+  return results;
+}
+
