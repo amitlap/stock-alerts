@@ -39,10 +39,11 @@ export default function AddAlertForm() {
       <Typography variant="h6" component="h2">
         Add Alert
       </Typography>
-      <Stack direction="row" spacing={2} sx={{ flexWrap: "wrap" }}>
+      <Stack spacing={2}>
         <TextField
           label="Stock"
           size="small"
+          fullWidth
           value={stock}
           onChange={(e) => setStock(e.target.value)}
         />
@@ -50,9 +51,9 @@ export default function AddAlertForm() {
           label="Operator"
           size="small"
           select
+          fullWidth
           value={operator}
           onChange={(e) => setOperator(e.target.value as AlertOperator)}
-          sx={{ width: 90 }}
         >
           {OPERATORS.map((op) => (
             <MenuItem key={op} value={op}>
@@ -64,6 +65,7 @@ export default function AddAlertForm() {
           label="Price"
           size="small"
           type="number"
+          fullWidth
           value={price}
           onChange={(e) => setPrice(e.target.value)}
         />
@@ -71,6 +73,7 @@ export default function AddAlertForm() {
           label="Email"
           size="small"
           type="email"
+          fullWidth
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />

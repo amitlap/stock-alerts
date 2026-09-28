@@ -11,7 +11,7 @@ export default async function Home() {
 
   const { data: alerts, error } = await supabase
     .from("alerts")
-    .select("id, stock, email");
+    .select("id, stock, email, price, operator");
   console.log(alerts, error);
 
   console.log("ALERTS:", alerts);
