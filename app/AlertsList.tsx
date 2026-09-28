@@ -1,16 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Button, Typography } from "@mui/material";
 import {
-  Button,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
-} from "@mui/material";
-import { removeAlert } from "./actions";
-import type { AlertOperator } from "./stockUtils";
+  DataGrid,
+  type GridColDef,
+  type GridRowClassNameParams,
+} from "@mui/x-data-grid";
+import { getLatestStockPrices, removeAlert } from "./actions";
+import { getMatchingAlerts, type AlertOperator, type StockPrice } from "./stockUtils";
 
 type AlertListItem = {
   id: number;
@@ -22,6 +20,41 @@ type AlertListItem = {
 
 export default function AlertsList({ alerts }: { alerts: AlertListItem[] }) {
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [stocks, setStocks] = useState<StockPrice[]>([]);
+  const [pricesLoading, setPricesLoading] = useState(false);
+  const [pricesError, setPricesError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const symbols = [...new Set(alerts.map((alert) => alert.stock))];
+    if (symbols.length === 0) return;
+
+    let cancelled = false;
+    setPricesLoading(true);
+    setPricesError(null);
+
+    getLatestStockPrices(symbols)
+      .then((prices) => {
+        if (cancelled) return;
+        setStocks(prices);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setPricesError(error instanceof Error ? error.message : String(error));
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setPricesLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [alerts]);
+
+  const matchingAlerts = useMemo(
+    () => new Set(getMatchingAlerts(alerts, stocks)),
+    [alerts, stocks],
+  );
 
   async function handleDelete(id: number) {
     setDeletingId(id);
@@ -32,35 +65,58 @@ export default function AlertsList({ alerts }: { alerts: AlertListItem[] }) {
     }
   }
 
+  const columns: GridColDef<AlertListItem>[] = [
+    { field: "stock", headerName: "Stock", flex: 1 },
+    {
+      field: "condition",
+      headerName: "Condition",
+      flex: 1,
+      valueGetter: (_value, row) => `${row.operator ?? "="} ${row.price ?? "?"}`,
+    },
+    { field: "email", headerName: "Email", flex: 1.5 },
+    {
+      field: "actions",
+      headerName: "",
+      sortable: false,
+      filterable: false,
+      align: "right",
+      flex: 1,
+      renderCell: (params) => (
+        <Button
+          size="small"
+          color="error"
+          onClick={() => handleDelete(params.row.id)}
+          disabled={deletingId === params.row.id}
+        >
+          {deletingId === params.row.id ? "Deleting..." : "Delete"}
+        </Button>
+      ),
+    },
+  ];
+
   return (
-    <Table size="small">
-      <TableHead>
-        <TableRow>
-          <TableCell>Stock</TableCell>
-          <TableCell>Condition</TableCell>
-          <TableCell>Email</TableCell>
-          <TableCell align="right" />
-        </TableRow>
-      </TableHead>
-      <TableBody>
-        {alerts.map((alert) => (
-          <TableRow key={alert.id}>
-            <TableCell>{alert.stock}</TableCell>
-            <TableCell>{`${alert.operator ?? "="} ${alert.price ?? "?"}`}</TableCell>
-            <TableCell>{alert.email}</TableCell>
-            <TableCell align="right">
-              <Button
-                size="small"
-                color="error"
-                onClick={() => handleDelete(alert.id)}
-                disabled={deletingId === alert.id}
-              >
-                {deletingId === alert.id ? "Deleting..." : "Delete"}
-              </Button>
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+    <>
+      {pricesError && (
+        <Typography color="error" variant="body2" sx={{ mb: 1 }}>
+          Failed to load stock prices: {pricesError}
+        </Typography>
+      )}
+      <DataGrid
+        autoHeight
+        rows={alerts}
+        columns={columns}
+        loading={pricesLoading}
+        density="compact"
+        disableRowSelectionOnClick
+        getRowClassName={(params: GridRowClassNameParams<AlertListItem>) =>
+          matchingAlerts.has(params.row) ? "matching-row" : ""
+        }
+        sx={{
+          "& .matching-row": {
+            bgcolor: "grey.200",
+          },
+        }}
+      />
+    </>
   );
 }
