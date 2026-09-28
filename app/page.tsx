@@ -17,23 +17,25 @@ export default async function Home() {
   console.log("ALERTS:", alerts);
   console.log("ERROR:", error);
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <StockHeader />
-      <Paper component="main" elevation={1} sx={{ width: "100%", maxWidth: 400, p: 4 }}>
-        <Typography variant="h5" component="h1" gutterBottom>
-          Stock Order
-        </Typography>
-
-        <Typography variant="h6" component="h2" gutterBottom>
-          Alerts
-        </Typography>
-        <AddAlertForm />
-        {error ? (
-          <Typography color="error">Failed to load alerts: {error.message}</Typography>
-        ) : (
-          <AlertsList alerts={alerts ?? []} />
-        )}
-      </Paper>
+    <div className="flex flex-col flex-1 bg-zinc-50 font-sans dark:bg-black">
+      <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+        <StockHeader />
+      </div>
+      <main className="flex flex-col lg:flex-row gap-6 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1">
+        <Paper component="section" elevation={1} sx={{ p: 4, flex: 2 }}>
+          <Typography variant="h5" component="h1" gutterBottom>
+            Alerts
+          </Typography>
+          {error ? (
+            <Typography color="error">Failed to load alerts: {error.message}</Typography>
+          ) : (
+            <AlertsList alerts={alerts ?? []} />
+          )}
+        </Paper>
+        <Paper component="section" elevation={1} sx={{ p: 4, flex: 1 }}>
+          <AddAlertForm />
+        </Paper>
+      </main>
     </div>
   );
 }

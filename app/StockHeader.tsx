@@ -14,6 +14,19 @@ export default function StockHeader() {
   const [emailResult, setEmailResult] = useState<string | null>(null);
   const [alertsResult, setAlertsResult] = useState<string | null>(null);
 
+  const handleFetchStocks = useCallback(async () => {
+    setLoading(true);
+    try {
+      setStocks(await getLatestStockPrices(TICKERS));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    handleFetchStocks();
+  }, [handleFetchStocks]);
+
   async function handleCheckStocks() {
     setChecking(true);
     setEmailResult(null);
@@ -72,7 +85,7 @@ export default function StockHeader() {
   }
 
   return (
-    <Paper elevation={1} sx={{ width: "100%", maxWidth: 600, p: 2, mb: 3 }}>
+    <Paper elevation={1} sx={{ width: "100%", p: 2, mb: 3 }}>
       <Stack direction="row" spacing={3} sx={{ alignItems: "center", flexWrap: "wrap" }}>
         {stocks.map((stock) => (
           <Stack key={stock.symbol} direction="row" spacing={0.5} sx={{ alignItems: "baseline" }}>
@@ -86,17 +99,10 @@ export default function StockHeader() {
           <Button
             variant="outlined"
             size="small"
-            onClick={async () => {
-              setLoading(true);
-              try {
-                setStocks(await getLatestStockPrices(TICKERS));
-              } finally {
-                setLoading(false);
-              }
-            }}
-            disabled={checking}
+            onClick={handleFetchStocks}
+            disabled={loading}
           >
-            {checking ? "Checking..." : "Check Stocks"}
+            {loading ? "Checking..." : "Check Stocks"}
           </Button>
           <Button
             variant="outlined"
