@@ -9,9 +9,7 @@ import type { Alert, StockPrice } from "./stockUtils";
 export default function StockHeader() {
   const [stocks, setStocks] = useState<StockPrice[]>([]);
   const [loading, setLoading] = useState(false);
-  const [checking, setChecking] = useState(false);
   const [checkingAlerts, setCheckingAlerts] = useState(false);
-  const [emailResult, setEmailResult] = useState<string | null>(null);
   const [alertsResult, setAlertsResult] = useState<string | null>(null);
 
   const handleFetchStocks = useCallback(async () => {
@@ -27,41 +25,13 @@ export default function StockHeader() {
     handleFetchStocks();
   }, [handleFetchStocks]);
 
-  async function handleCheckStocks() {
-    setChecking(true);
-    setEmailResult(null);
-    try {
-      const res = await fetch("/api/cron/stocks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sendAnyway: true }),
-      });
-      const data = await res.json();
-      console.log("Stock check response:", data);
-      if (!data.success) {
-        throw new Error(data.error ?? "Stock check failed");
-      }
-      setEmailResult(`Email sent (id: ${data.email?.id ?? "unknown"})`);
-    } catch (error) {
-      setEmailResult(
-        `Email failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    } finally {
-      setChecking(false);
-    }
-  }
-
   async function handleCheckAlerts() {
     setCheckingAlerts(true);
     setAlertsResult(null);
     try {
       const [stockPrices, res] = await Promise.all([
         getLatestStockPrices(TICKERS),
-        fetch("/api/cron/stocks", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sendAnyway: false }),
-        }),
+        fetch("/api/cron/stocks", { method: "POST" }),
       ]);
       setStocks(stockPrices);
       const data = await res.json();
@@ -107,14 +77,6 @@ export default function StockHeader() {
           <Button
             variant="outlined"
             size="small"
-            onClick={handleCheckStocks}
-            disabled={checking}
-          >
-            {checking ? "Sending..." : "Send Email"}
-          </Button>
-          <Button
-            variant="outlined"
-            size="small"
             onClick={handleCheckAlerts}
             disabled={checkingAlerts}
           >
@@ -122,11 +84,6 @@ export default function StockHeader() {
           </Button>
         </Stack>
       </Stack>
-      {emailResult && (
-        <Typography variant="body2" sx={{ mt: 1 }}>
-          {emailResult}
-        </Typography>
-      )}
       {alertsResult && (
         <Typography variant="body2" sx={{ mt: 1 }}>
           {alertsResult}
