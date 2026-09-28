@@ -7,7 +7,7 @@ import { createClient } from "@/utils/supabase/server";
 import type { AlertOperator, StockPrice } from "./stockUtils";
 
 const yahooFinance = new YahooFinance();
-const ALERT_OPERATORS: AlertOperator[] = ["=", ">", "<"];
+const ALERT_OPERATORS: AlertOperator[] = [">", "<"];
 
 export async function getLatestStockPrices(tickers: string[]): Promise<StockPrice[]> {
   const quotes = await yahooFinance.quote(tickers);

@@ -71,7 +71,7 @@ export default function AlertsList({ alerts }: { alerts: AlertListItem[] }) {
       field: "condition",
       headerName: "Condition",
       flex: 1,
-      valueGetter: (_value, row) => `${row.operator ?? "="} ${row.price ?? "?"}`,
+      valueGetter: (_value, row) => `${row.operator ?? ">"} ${row.price ?? "?"}`,
     },
     { field: "email", headerName: "Email", flex: 1.5 },
     {

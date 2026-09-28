@@ -70,7 +70,7 @@ async function checkStocks() {
   const matchingAlerts = getMatchingAlerts(alerts ?? [], stocks);
   console.log(
     "Stocks fulfilling alert conditions:",
-    matchingAlerts.map((alert) => `${alert.stock} ${alert.operator ?? "="} ${alert.price}`),
+    matchingAlerts.map((alert) => `${alert.stock} ${alert.operator ?? ">"} ${alert.price}`),
   );
 
   const alertEmails = await sendAlertEmails(matchingAlerts, stocks, emailKey, emailFrom);
@@ -99,7 +99,7 @@ async function sendAlertEmails(
     const rows = alertsForEmail
       .map((alert) => {
         const stock = stocks.find((s) => s.symbol === alert.stock);
-        return `<tr><td>${alert.stock}</td><td>${alert.operator ?? "="} ${alert.price}</td><td>$${stock?.price?.toFixed(2) ?? "N/A"}</td></tr>`;
+        return `<tr><td>${alert.stock}</td><td>${alert.operator ?? ">"} ${alert.price}</td><td>$${stock?.price?.toFixed(2) ?? "N/A"}</td></tr>`;
       })
       .join("");
 

@@ -43,7 +43,7 @@ export default function StockHeader() {
       setAlertsResult(
         matchingAlerts.length === 0
           ? "No alerts match the current prices."
-          : `Emailed: ${matchingAlerts.map((alert) => `${alert.stock} ${alert.operator ?? "="} ${alert.price} (${alert.email})`).join(", ")}`,
+          : `Emailed: ${matchingAlerts.map((alert) => `${alert.stock} ${alert.operator ?? ">"} ${alert.price} (${alert.email})`).join(", ")}`,
       );
     } catch (error) {
       setAlertsResult(

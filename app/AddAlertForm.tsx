@@ -5,11 +5,11 @@ import { Button, MenuItem, Stack, TextField, Typography } from "@mui/material";
 import { addAlert } from "./actions";
 import type { AlertOperator } from "./stockUtils";
 
-const OPERATORS: AlertOperator[] = ["=", ">", "<"];
+const OPERATORS: AlertOperator[] = [">", "<"];
 
 export default function AddAlertForm() {
   const [stock, setStock] = useState("");
-  const [operator, setOperator] = useState<AlertOperator>("=");
+  const [operator, setOperator] = useState<AlertOperator>(">");
   const [price, setPrice] = useState("");
   const [email, setEmail] = useState("");
   const [saving, setSaving] = useState(false);
@@ -24,7 +24,7 @@ export default function AddAlertForm() {
     try {
       await addAlert({ stock: stock.trim().toUpperCase(), operator, price: priceValue, email: email.trim() });
       setStock("");
-      setOperator("=");
+      setOperator(">");
       setPrice("");
       setEmail("");
     } catch (err) {

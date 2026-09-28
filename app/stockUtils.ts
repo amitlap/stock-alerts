@@ -5,7 +5,7 @@ export type StockPrice = {
   changePercent?: number;
 };
 
-export type AlertOperator = "=" | ">" | "<";
+export type AlertOperator = ">" | "<";
 
 export type Alert = {
   stock: string;
@@ -23,8 +23,6 @@ export function isBigChange(stock: StockPrice) {
 
 function meetsCondition(currentPrice: number, operator: AlertOperator, targetPrice: number) {
   switch (operator) {
-    case "=":
-      return currentPrice === targetPrice;
     case ">":
       return currentPrice > targetPrice;
     case "<":
@@ -38,6 +36,6 @@ export function getMatchingAlerts(alerts: Alert[], stocks: StockPrice[]): Alert[
     const stock = stocks.find((s) => s.symbol === alert.stock);
     if (!stock || stock.price == null || alert.price == null) return false;
 
-    return meetsCondition(stock.price, alert.operator ?? "=", alert.price);
+    return meetsCondition(stock.price, alert.operator ?? ">", alert.price);
   });
 }
