@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { getLatestStockPrices } from "../../../actions";
-import { getMatchingAlerts, isBigChange } from "../../../stockUtils";
+import { getMatchingAlerts } from "../../../stockUtils";
 import { TICKERS } from "../../../constants";
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
@@ -14,21 +14,19 @@ export async function GET(request: Request) {
   //  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   //}
 
-  return respond(false);
+  return respond();
 }
 
 export async function POST(request: Request) {
-  const body = await request.json().catch(() => ({}));
-  return respond(body?.sendAnyway === true);
+  return respond();
 }
 
-async function respond(sendAnyway: boolean) {
+async function respond() {
   try {
-    const { email, matchingAlerts, alertEmails } = await checkStocks(sendAnyway);
+    const { matchingAlerts, alertEmails } = await checkStocks();
 
     return NextResponse.json({
       success: true,
-      email,
       matchingAlerts,
       alertEmails,
     });
@@ -47,24 +45,17 @@ async function respond(sendAnyway: boolean) {
   }
 }
 
-async function checkStocks(sendAnyway: boolean) {
+async function checkStocks() {
   console.log("Checking stocks...");
 
   const emailKey = process.env.RESEND_API_KEY;
-  const emailTo = ['Zusagi70@gmail.com','amitlapid711@gmail.com'];
   const emailFrom = 'alerts@stock-alerts-alpha.com';
 
   if (!emailKey) {
-    throw new Error("RESEND_API_KEY and STOCK_EMAIL_TO must be configured1");
+    throw new Error("RESEND_API_KEY must be configured");
   }
 
   const stocks = await getLatestStockPrices(TICKERS);
-  const stockRows = stocks
-    .map(
-      (stock) =>
-        `<tr><td>${stock.symbol}</td><td>$${stock.price?.toFixed(2) ?? "N/A"}</td><td>${stock.changePercent?.toFixed(2) ?? "N/A"}%</td></tr>`,
-    )
-    .join("");
 
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
@@ -84,27 +75,9 @@ async function checkStocks(sendAnyway: boolean) {
 
   const alertEmails = await sendAlertEmails(matchingAlerts, stocks, emailKey, emailFrom);
 
-  const nvdaStock = stocks.find(stock => stock.symbol === "NVDA") ?? null;
-
-  if (!sendAnyway && (!nvdaStock || !isBigChange(nvdaStock))) {
-    console.log("NVDA change not significant, skipping email.");
-    return { email: null, matchingAlerts, alertEmails };
-  }
-
-  const { data, error } = await new Resend(emailKey).emails.send({
-    from: emailFrom,
-    to: emailTo,
-    subject: "Stock price update",
-    html: `<h1>Stock price update</h1><table><thead><tr><th>Symbol</th><th>Price</th><th>Change</th></tr></thead><tbody>${stockRows}</tbody></table>`,
-  });
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
   console.log("Stock check completed!");
 
-  return { email: data, matchingAlerts, alertEmails };
+  return { matchingAlerts, alertEmails };
 }
 
 // Sends one email per alert address, listing the stocks whose condition it matched.
