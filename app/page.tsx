@@ -2,6 +2,8 @@ import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import { Paper, Typography } from "@mui/material";
 import StockHeader from "./StockHeader";
+import AddAlertForm from "./AddAlertForm";
+import AlertsList from "./AlertsList";
 
 export default async function Home() {
   const cookieStore = await cookies();
@@ -9,7 +11,7 @@ export default async function Home() {
 
   const { data: alerts, error } = await supabase
     .from("alerts")
-    .select("stock, email");
+    .select("id, stock, email");
   console.log(alerts, error);
 
   console.log("ALERTS:", alerts);
@@ -25,16 +27,11 @@ export default async function Home() {
         <Typography variant="h6" component="h2" gutterBottom>
           Alerts
         </Typography>
+        <AddAlertForm />
         {error ? (
           <Typography color="error">Failed to load alerts: {error.message}</Typography>
         ) : (
-          <ul>
-            {alerts?.map((alert, index) => (
-              <li key={`${alert.stock}-${alert.email}-${index}`}>
-                {alert.stock} — {alert.email}
-              </li>
-            ))}
-          </ul>
+          <AlertsList alerts={alerts ?? []} />
         )}
       </Paper>
     </div>
