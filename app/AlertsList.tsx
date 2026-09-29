@@ -1,14 +1,28 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Button, Typography } from "@mui/material";
+import {
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormControlLabel,
+  MenuItem,
+  Stack,
+  Switch,
+  TextField,
+  Typography,
+} from "@mui/material";
 import {
   DataGrid,
   type GridColDef,
   type GridRowClassNameParams,
 } from "@mui/x-data-grid";
-import { getLatestStockPrices, removeAlert } from "./actions";
+import { getLatestStockPrices, removeAlert, updateAlert } from "./actions";
 import { getMatchingAlerts, type AlertOperator, type StockPrice } from "./stockUtils";
+
+const OPERATORS: AlertOperator[] = [">", "<"];
 
 type AlertListItem = {
   id: number;
@@ -16,6 +30,7 @@ type AlertListItem = {
   email: string;
   price?: number | null;
   operator?: AlertOperator | null;
+  isActive?: boolean | null;
 };
 
 export default function AlertsList({ alerts }: { alerts: AlertListItem[] }) {
@@ -23,6 +38,14 @@ export default function AlertsList({ alerts }: { alerts: AlertListItem[] }) {
   const [stocks, setStocks] = useState<StockPrice[]>([]);
   const [pricesLoading, setPricesLoading] = useState(false);
   const [pricesError, setPricesError] = useState<string | null>(null);
+  const [editingAlert, setEditingAlert] = useState<AlertListItem | null>(null);
+  const [editStock, setEditStock] = useState("");
+  const [editOperator, setEditOperator] = useState<AlertOperator>(">");
+  const [editPrice, setEditPrice] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editIsActive, setEditIsActive] = useState(true);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   useEffect(() => {
     const symbols = [...new Set(alerts.map((alert) => alert.stock))];
@@ -65,6 +88,47 @@ export default function AlertsList({ alerts }: { alerts: AlertListItem[] }) {
     }
   }
 
+  function openEditDialog(alert: AlertListItem) {
+    setEditingAlert(alert);
+    setEditStock(alert.stock);
+    setEditOperator(alert.operator ?? ">");
+    setEditPrice(alert.price != null ? String(alert.price) : "");
+    setEditEmail(alert.email);
+    setEditIsActive(alert.isActive ?? true);
+    setEditError(null);
+  }
+
+  function closeEditDialog() {
+    setEditingAlert(null);
+  }
+
+  const editPriceValue = Number(editPrice);
+  const canSaveEdit =
+    editStock.trim() !== "" &&
+    editEmail.trim() !== "" &&
+    editPrice.trim() !== "" &&
+    Number.isFinite(editPriceValue);
+
+  async function handleEditSave() {
+    if (!editingAlert) return;
+    setEditSaving(true);
+    setEditError(null);
+    try {
+      await updateAlert(editingAlert.id, {
+        stock: editStock.trim().toUpperCase(),
+        operator: editOperator,
+        price: editPriceValue,
+        email: editEmail.trim(),
+        isActive: editIsActive,
+      });
+      setEditingAlert(null);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
   const columns: GridColDef<AlertListItem>[] = [
     { field: "stock", headerName: "Stock", flex: 1 },
     {
@@ -74,22 +138,28 @@ export default function AlertsList({ alerts }: { alerts: AlertListItem[] }) {
       valueGetter: (_value, row) => `${row.operator ?? ">"} ${row.price ?? "?"}`,
     },
     { field: "email", headerName: "Email", flex: 1.5 },
+    { field: "isActive", headerName: "Active", type: "boolean", flex: 0.75 },
     {
       field: "actions",
       headerName: "",
       sortable: false,
       filterable: false,
       align: "right",
-      flex: 1,
+      flex: 1.5,
       renderCell: (params) => (
-        <Button
-          size="small"
-          color="error"
-          onClick={() => handleDelete(params.row.id)}
-          disabled={deletingId === params.row.id}
-        >
-          {deletingId === params.row.id ? "Deleting..." : "Delete"}
-        </Button>
+        <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end" }}>
+          <Button size="small" onClick={() => openEditDialog(params.row)}>
+            Edit
+          </Button>
+          <Button
+            size="small"
+            color="error"
+            onClick={() => handleDelete(params.row.id)}
+            disabled={deletingId === params.row.id}
+          >
+            {deletingId === params.row.id ? "Deleting..." : "Delete"}
+          </Button>
+        </Stack>
       ),
     },
   ];
@@ -117,6 +187,66 @@ export default function AlertsList({ alerts }: { alerts: AlertListItem[] }) {
           },
         }}
       />
+      <Dialog open={editingAlert !== null} onClose={closeEditDialog} fullWidth maxWidth="xs">
+        <DialogTitle>Edit Alert</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <TextField
+              label="Stock"
+              size="small"
+              fullWidth
+              value={editStock}
+              onChange={(e) => setEditStock(e.target.value)}
+            />
+            <TextField
+              label="Operator"
+              size="small"
+              select
+              fullWidth
+              value={editOperator}
+              onChange={(e) => setEditOperator(e.target.value as AlertOperator)}
+            >
+              {OPERATORS.map((op) => (
+                <MenuItem key={op} value={op}>
+                  {op}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              label="Price"
+              size="small"
+              type="number"
+              fullWidth
+              value={editPrice}
+              onChange={(e) => setEditPrice(e.target.value)}
+            />
+            <TextField
+              label="Email"
+              size="small"
+              type="email"
+              fullWidth
+              value={editEmail}
+              onChange={(e) => setEditEmail(e.target.value)}
+            />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={editIsActive}
+                  onChange={(e) => setEditIsActive(e.target.checked)}
+                />
+              }
+              label="Active"
+            />
+            {editError && <Typography color="error">{editError}</Typography>}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeEditDialog}>Cancel</Button>
+          <Button variant="contained" onClick={handleEditSave} disabled={!canSaveEdit || editSaving}>
+            {editSaving ? "Saving..." : "Save"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 }

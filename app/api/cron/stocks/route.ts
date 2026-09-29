@@ -61,7 +61,7 @@ async function checkStocks() {
   const supabase = createClient(cookieStore);
   const { data: alerts, error: alertsError } = await supabase
     .from("alerts")
-    .select("stock, email, price, operator");
+    .select("id, stock, email, price, operator, isActive");
 
   if (alertsError) {
     throw new Error(alertsError.message);
@@ -74,6 +74,7 @@ async function checkStocks() {
   );
 
   const alertEmails = await sendAlertEmails(matchingAlerts, stocks, emailKey, emailFrom);
+  await deactivateSentAlerts(alertEmails, supabase);
 
   console.log("Stock check completed!");
 
@@ -114,9 +115,29 @@ async function sendAlertEmails(
       console.error(`Failed to send alert email to ${email}:`, error.message);
     }
 
-    results.push({ email, data, error: error?.message ?? null });
+    results.push({ email, alerts: alertsForEmail, data, error: error?.message ?? null });
   }
 
   return results;
+}
+
+// Deactivates alerts once their email has gone out, so they only fire once until re-enabled by the user.
+async function deactivateSentAlerts(
+  alertEmails: Awaited<ReturnType<typeof sendAlertEmails>>,
+  supabase: Awaited<ReturnType<typeof createClient>>,
+) {
+  const sentAlertIds = alertEmails
+    .filter((result) => !result.error)
+    .flatMap((result) => result.alerts)
+    .map((alert) => alert.id)
+    .filter((id): id is number => id != null);
+
+  if (sentAlertIds.length === 0) return;
+
+  const { error } = await supabase.from("alerts").update({ isActive: false }).in("id", sentAlertIds);
+
+  if (error) {
+    console.error("Failed to deactivate sent alerts:", error.message);
+  }
 }
 

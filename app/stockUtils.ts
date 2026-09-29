@@ -12,6 +12,8 @@ export type Alert = {
   email: string;
   price?: number | null;
   operator?: AlertOperator | null;
+  isActive?: boolean | null;
+  id?: number;
 };
 
 export function isBigChange(stock: StockPrice) {
@@ -33,6 +35,8 @@ function meetsCondition(currentPrice: number, operator: AlertOperator, targetPri
 // Alerts whose condition (=, >, <) against the target price is met by the stock's current live price.
 export function getMatchingAlerts(alerts: Alert[], stocks: StockPrice[]): Alert[] {
   return alerts.filter((alert) => {
+    if (alert.isActive === false) return false;
+
     const stock = stocks.find((s) => s.symbol === alert.stock);
     if (!stock || stock.price == null || alert.price == null) return false;
 

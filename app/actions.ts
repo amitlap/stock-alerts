@@ -29,6 +29,7 @@ export type NewAlert = {
   price: number;
   operator: AlertOperator;
   email: string;
+  isActive: boolean;
 };
 
 export type Alert = NewAlert & {
@@ -55,7 +56,42 @@ export async function addAlert(alert: NewAlert): Promise<Alert> {
       price: alert.price,
       operator: alert.operator,
       email: alert.email.trim(),
+      isActive: alert.isActive,
     })
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/");
+
+  return data;
+}
+
+export async function updateAlert(id: number, alert: NewAlert): Promise<Alert> {
+  if (!alert.stock.trim() || !alert.email.trim()) {
+    throw new Error("Stock and email are required");
+  }
+  if (!Number.isFinite(alert.price)) {
+    throw new Error("Price must be a number");
+  }
+  if (!ALERT_OPERATORS.includes(alert.operator)) {
+    throw new Error("Invalid operator");
+  }
+
+  const supabase = createClient(await cookies());
+  const { data, error } = await supabase
+    .from("alerts")
+    .update({
+      stock: alert.stock.trim(),
+      price: alert.price,
+      operator: alert.operator,
+      email: alert.email.trim(),
+      isActive: alert.isActive,
+    })
+    .eq("id", id)
     .select()
     .single();
 

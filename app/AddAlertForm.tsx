@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button, MenuItem, Stack, TextField, Typography } from "@mui/material";
+import { Button, FormControlLabel, MenuItem, Stack, Switch, TextField, Typography } from "@mui/material";
 import { addAlert } from "./actions";
 import type { AlertOperator } from "./stockUtils";
 
@@ -12,6 +12,7 @@ export default function AddAlertForm() {
   const [operator, setOperator] = useState<AlertOperator>(">");
   const [price, setPrice] = useState("");
   const [email, setEmail] = useState("");
+  const [isActive, setIsActive] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,11 +23,12 @@ export default function AddAlertForm() {
     setSaving(true);
     setError(null);
     try {
-      await addAlert({ stock: stock.trim().toUpperCase(), operator, price: priceValue, email: email.trim() });
+      await addAlert({ stock: stock.trim().toUpperCase(), operator, price: priceValue, email: email.trim(), isActive });
       setStock("");
       setOperator(">");
       setPrice("");
       setEmail("");
+      setIsActive(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -76,6 +78,10 @@ export default function AddAlertForm() {
           fullWidth
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+        />
+        <FormControlLabel
+          control={<Switch checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />}
+          label="Active"
         />
         <Button variant="contained" onClick={handleSave} disabled={!canSave || saving}>
           {saving ? "Saving..." : "Save"}
