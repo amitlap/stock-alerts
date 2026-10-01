@@ -11,6 +11,7 @@ export default function StockHeader() {
   const [loading, setLoading] = useState(false);
   const [checkingAlerts, setCheckingAlerts] = useState(false);
   const [alertsResult, setAlertsResult] = useState<string | null>(null);
+  const [alertsResultIsError, setAlertsResultIsError] = useState(false);
 
   const handleFetchStocks = useCallback(async () => {
     setLoading(true);
@@ -28,6 +29,7 @@ export default function StockHeader() {
   async function handleCheckAlerts() {
     setCheckingAlerts(true);
     setAlertsResult(null);
+    setAlertsResultIsError(false);
     try {
       const [stockPrices, res] = await Promise.all([
         getLatestStockPrices(TICKERS),
@@ -36,6 +38,9 @@ export default function StockHeader() {
       setStocks(stockPrices);
       const data = await res.json();
       console.log("Alerts check response:", data);
+      if (res.status === 401) {
+        throw new Error("Unauthorized: request was rejected by the server.");
+      }
       if (!data.success) {
         throw new Error(data.error ?? "Alerts check failed");
       }
@@ -46,6 +51,7 @@ export default function StockHeader() {
           : `Emailed: ${matchingAlerts.map((alert) => `${alert.stock} ${alert.operator ?? ">"} ${alert.price} (${alert.email})`).join(", ")}`,
       );
     } catch (error) {
+      setAlertsResultIsError(true);
       setAlertsResult(
         `Alerts check failed: ${error instanceof Error ? error.message : String(error)}`,
       );
@@ -85,7 +91,11 @@ export default function StockHeader() {
         </Stack>
       </Stack>
       {alertsResult && (
-        <Typography variant="body2" sx={{ mt: 1 }}>
+        <Typography
+          variant="body2"
+          color={alertsResultIsError ? "error" : undefined}
+          sx={{ mt: 1 }}
+        >
           {alertsResult}
         </Typography>
       )}

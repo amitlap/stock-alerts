@@ -8,11 +8,11 @@ import { cookies } from "next/headers";
 
 export async function GET(request: Request) {
   // Verify that the request comes from our GitHub Action
-  //const authorization = request.headers.get("authorization");
+  const authorization = request.headers.get("authorization");
 
-  //if (authorization !== `Bearer ${process.env.CRON_SECRET}`) {
-  //  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  //}
+  if (authorization !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   return respond();
 }
