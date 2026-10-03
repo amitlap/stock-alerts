@@ -4,7 +4,7 @@ import { Paper, Typography } from "@mui/material";
 import UserHeader from "./UserHeader";
 import StockHeader from "./StockHeader";
 import AddAlertForm from "./AddAlertForm";
-import AlertsList from "./AlertsList";
+import AlertsPanel from "./AlertsPanel";
 
 export default async function Home() {
   const cookieStore = await cookies();
@@ -16,7 +16,7 @@ export default async function Home() {
 
   const alertsQuery = supabase
     .from("alerts")
-    .select("id, stock, email, price, operator, isActive");
+    .select("id, created_at, stock, email, price, operator, isActive");
 
   // Only show alerts belonging to the signed-in user.
   const { data: alerts, error } = user?.email
@@ -30,13 +30,15 @@ export default async function Home() {
       </div>
       <main className="flex flex-col lg:flex-row gap-6 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1">
         <Paper component="section" elevation={1} sx={{ p: 4, flex: 2 }}>
-          <Typography variant="h5" component="h1" gutterBottom>
-            My Alerts
-          </Typography>
           {error ? (
-            <Typography color="error">Failed to load alerts: {error.message}</Typography>
+            <>
+              <Typography variant="h5" component="h1" gutterBottom>
+                My Alerts
+              </Typography>
+              <Typography color="error">Failed to load alerts: {error.message}</Typography>
+            </>
           ) : (
-            <AlertsList alerts={alerts ?? []} />
+            <AlertsPanel initialAlerts={alerts ?? []} />
           )}
         </Paper>
         <Paper component="section" elevation={1} sx={{ p: 4, flex: 1 }}>
