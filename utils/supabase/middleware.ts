@@ -39,7 +39,18 @@ export const updateSession = async (request: NextRequest) => {
   //
   // Calling getUser() refreshes the session token and re-sets the cookies
   // via setAll above — this is what keeps sessions alive.
-  await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const isPublicPath =
+    request.nextUrl.pathname.startsWith("/login") ||
+    request.nextUrl.pathname.startsWith("/signup") ||
+    request.nextUrl.pathname.startsWith("/api/cron");
+
+  if (!user && !isPublicPath) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    return NextResponse.redirect(url);
+  }
 
   return supabaseResponse
 };
