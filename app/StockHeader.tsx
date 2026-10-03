@@ -6,7 +6,7 @@ import { TICKERS } from "./constants";
 import { getLatestStockPrices } from "./actions";
 import type { Alert, StockPrice } from "./stockUtils";
 
-export default function StockHeader() {
+export default function StockHeader({ userEmail }: { userEmail: string | null }) {
   const [stocks, setStocks] = useState<StockPrice[]>([]);
   const [loading, setLoading] = useState(false);
   const [checkingAlerts, setCheckingAlerts] = useState(false);

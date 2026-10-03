@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import { Paper, Typography } from "@mui/material";
+import UserHeader from "./UserHeader";
 import StockHeader from "./StockHeader";
 import AddAlertForm from "./AddAlertForm";
 import AlertsList from "./AlertsList";
@@ -8,6 +9,10 @@ import AlertsList from "./AlertsList";
 export default async function Home() {
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const { data: alerts, error } = await supabase
     .from("alerts")
@@ -19,7 +24,8 @@ export default async function Home() {
   return (
     <div className="flex flex-col flex-1 bg-zinc-50 font-sans dark:bg-black">
       <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-        <StockHeader />
+        <UserHeader userEmail={user?.email ?? null} />
+        <StockHeader userEmail={user?.email ?? null} />
       </div>
       <main className="flex flex-col lg:flex-row gap-6 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1">
         <Paper component="section" elevation={1} sx={{ p: 4, flex: 2 }}>
