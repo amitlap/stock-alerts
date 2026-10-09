@@ -23,6 +23,7 @@ export default function AlertDetailForm({ alert }: { alert: Alert }) {
   const [price, setPrice] = useState(String(alert.price));
   const [email, setEmail] = useState(alert.email);
   const [isActive, setIsActive] = useState(alert.isActive);
+  const [description, setDescription] = useState(alert.description ?? "");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +42,7 @@ export default function AlertDetailForm({ alert }: { alert: Alert }) {
         price: priceValue,
         email: email.trim(),
         isActive,
+        description: description.trim() || null,
       });
       router.push("/");
       router.refresh();
@@ -100,6 +102,15 @@ export default function AlertDetailForm({ alert }: { alert: Alert }) {
         fullWidth
         value={email}
         onChange={(e) => setEmail(e.target.value)}
+      />
+      <TextField
+        label="Description"
+        size="small"
+        fullWidth
+        multiline
+        minRows={2}
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
       />
       <FormControlLabel
         control={<Switch checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />}

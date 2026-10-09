@@ -30,6 +30,7 @@ export type NewAlert = {
   operator: AlertOperator;
   email: string;
   isActive: boolean;
+  description?: string | null;
 };
 
 export type Alert = NewAlert & {
@@ -57,6 +58,7 @@ export async function addAlert(alert: NewAlert): Promise<Alert> {
       operator: alert.operator,
       email: alert.email.trim(),
       isActive: alert.isActive,
+      description: alert.description,
     })
     .select()
     .single();
@@ -90,6 +92,7 @@ export async function updateAlert(id: number, alert: NewAlert): Promise<Alert> {
       operator: alert.operator,
       email: alert.email.trim(),
       isActive: alert.isActive,
+      description: alert.description,
     })
     .eq("id", id)
     .select()
@@ -108,7 +111,7 @@ export async function getAlertById(id: number): Promise<Alert | null> {
   const supabase = createClient(await cookies());
   const { data, error } = await supabase
     .from("alerts")
-    .select("id, created_at, stock, email, price, operator, isActive")
+    .select("id, created_at, stock, email, price, operator, isActive, description")
     .eq("id", id)
     .maybeSingle();
 
