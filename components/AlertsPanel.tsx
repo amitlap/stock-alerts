@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button, Stack, Typography } from "@mui/material";
 import AlertsList from "./AlertsList";
 import AllAlertsTable from "./AllAlertsTable";
-import { getAllAlerts, type Alert } from "./actions";
+import { getAllAlerts, type Alert } from "@/lib/actions";
 
 export default function AlertsPanel({ initialAlerts }: { initialAlerts: Alert[] }) {
   const [allAlerts, setAllAlerts] = useState<Alert[] | null>(null);

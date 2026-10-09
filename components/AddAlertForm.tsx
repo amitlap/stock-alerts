@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { Button, FormControlLabel, MenuItem, Stack, Switch, TextField, Typography } from "@mui/material";
-import { addAlert } from "./actions";
-import type { AlertOperator } from "./stockUtils";
+import { addAlert } from "@/lib/actions";
+import type { AlertOperator } from "@/lib/stockUtils";
 
 const OPERATORS: AlertOperator[] = [">", "<"];
 

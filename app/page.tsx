@@ -1,10 +1,10 @@
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import { Paper, Typography } from "@mui/material";
-import UserHeader from "./UserHeader";
-import StockHeader from "./StockHeader";
-import AddAlertForm from "./AddAlertForm";
-import AlertsPanel from "./AlertsPanel";
+import UserHeader from "@/components/UserHeader";
+import StockHeader from "@/components/StockHeader";
+import AddAlertForm from "@/components/AddAlertForm";
+import AlertsPanel from "@/components/AlertsPanel";
 
 export default async function Home() {
   const cookieStore = await cookies();

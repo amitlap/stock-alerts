@@ -1,7 +1,7 @@
 "use client";
 
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
-import type { AlertOperator } from "./stockUtils";
+import type { AlertOperator } from "@/lib/stockUtils";
 
 type ReadOnlyAlert = {
   id: number;

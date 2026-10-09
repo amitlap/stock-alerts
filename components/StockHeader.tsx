@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button, Paper, Stack, Typography } from "@mui/material";
-import { TICKERS } from "./constants";
-import { getLatestStockPrices } from "./actions";
-import type { Alert, StockPrice } from "./stockUtils";
+import { TICKERS } from "@/lib/constants";
+import { getLatestStockPrices } from "@/lib/actions";
+import type { Alert, StockPrice } from "@/lib/stockUtils";
 
 export default function StockHeader({ userEmail }: { userEmail: string | null }) {
   const [stocks, setStocks] = useState<StockPrice[]>([]);

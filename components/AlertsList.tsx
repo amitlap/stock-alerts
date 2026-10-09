@@ -19,8 +19,8 @@ import {
   type GridColDef,
   type GridRowClassNameParams,
 } from "@mui/x-data-grid";
-import { getLatestStockPrices, removeAlert, updateAlert } from "./actions";
-import { getMatchingAlerts, type AlertOperator, type StockPrice } from "./stockUtils";
+import { getLatestStockPrices, removeAlert, updateAlert } from "@/lib/actions";
+import { getMatchingAlerts, type AlertOperator, type StockPrice } from "@/lib/stockUtils";
 
 const OPERATORS: AlertOperator[] = [">", "<"];
 

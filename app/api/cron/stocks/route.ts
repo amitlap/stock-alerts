@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
-import { getLatestStockPrices } from "../../../actions";
-import { getMatchingAlerts } from "../../../stockUtils";
-import { TICKERS } from "../../../constants";
+import { getLatestStockPrices } from "@/lib/actions";
+import { getMatchingAlerts } from "@/lib/stockUtils";
+import { TICKERS } from "@/lib/constants";
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 
