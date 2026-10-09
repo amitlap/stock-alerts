@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Button,
   Dialog,
@@ -34,6 +35,7 @@ type AlertListItem = {
 };
 
 export default function AlertsList({ alerts }: { alerts: AlertListItem[] }) {
+  const router = useRouter();
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [stocks, setStocks] = useState<StockPrice[]>([]);
   const [pricesLoading, setPricesLoading] = useState(false);
@@ -148,13 +150,22 @@ export default function AlertsList({ alerts }: { alerts: AlertListItem[] }) {
       flex: 1.5,
       renderCell: (params) => (
         <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end" }}>
-          <Button size="small" onClick={() => openEditDialog(params.row)}>
+          <Button
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation();
+              openEditDialog(params.row);
+            }}
+          >
             Edit
           </Button>
           <Button
             size="small"
             color="error"
-            onClick={() => handleDelete(params.row.id)}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDelete(params.row.id);
+            }}
             disabled={deletingId === params.row.id}
           >
             {deletingId === params.row.id ? "Deleting..." : "Delete"}
@@ -178,6 +189,7 @@ export default function AlertsList({ alerts }: { alerts: AlertListItem[] }) {
         loading={pricesLoading}
         density="compact"
         disableRowSelectionOnClick
+        onRowClick={(params) => router.push(`/alerts/${params.row.id}`)}
         getRowClassName={(params: GridRowClassNameParams<AlertListItem>) =>
           matchingAlerts.has(params.row) ? "matching-row" : ""
         }
@@ -185,6 +197,7 @@ export default function AlertsList({ alerts }: { alerts: AlertListItem[] }) {
           "& .matching-row": {
             bgcolor: "grey.200",
           },
+          "& .MuiDataGrid-row": { cursor: "pointer" },
         }}
       />
       <Dialog open={editingAlert !== null} onClose={closeEditDialog} fullWidth maxWidth="xs">

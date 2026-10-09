@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import type { AlertOperator } from "@/lib/stockUtils";
 
@@ -25,6 +26,8 @@ const columns: GridColDef<ReadOnlyAlert>[] = [
 ];
 
 export default function AllAlertsTable({ alerts }: { alerts: ReadOnlyAlert[] }) {
+  const router = useRouter();
+
   return (
     <DataGrid
       rows={alerts}
@@ -32,7 +35,8 @@ export default function AllAlertsTable({ alerts }: { alerts: ReadOnlyAlert[] }) 
       density="compact"
       disableRowSelectionOnClick
       hideFooterSelectedRowCount
-      sx={{ height: 400, overflow: "auto" }}
+      onRowClick={(params) => router.push(`/alerts/${params.row.id}`)}
+      sx={{ height: 400, overflow: "auto", "& .MuiDataGrid-row": { cursor: "pointer" } }}
     />
   );
 }

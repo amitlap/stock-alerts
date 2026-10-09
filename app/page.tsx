@@ -22,11 +22,15 @@ export default async function Home() {
   const { data: alerts, error } = user?.email
     ? await alertsQuery.eq("email", user.email)
     : { data: [], error: null };
+
+  // Show stocks the user has alerts for, so each user sees their own list.
+  const tickers = [...new Set((alerts ?? []).map((alert) => alert.stock))];
+
   return (
     <div className="flex flex-col flex-1 bg-zinc-50 font-sans dark:bg-black">
       <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
         <UserHeader userEmail={user?.email ?? null} />
-        <StockHeader userEmail={user?.email ?? null} />
+        <StockHeader userEmail={user?.email ?? null} tickers={tickers} />
       </div>
       <main className="flex flex-col lg:flex-row gap-6 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1">
         <Paper component="section" elevation={1} sx={{ p: 4, flex: 2 }}>

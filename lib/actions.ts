@@ -104,6 +104,21 @@ export async function updateAlert(id: number, alert: NewAlert): Promise<Alert> {
   return data;
 }
 
+export async function getAlertById(id: number): Promise<Alert | null> {
+  const supabase = createClient(await cookies());
+  const { data, error } = await supabase
+    .from("alerts")
+    .select("id, created_at, stock, email, price, operator, isActive")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data;
+}
+
 export async function getAllAlerts(): Promise<Alert[]> {
   const supabase = createClient(await cookies());
   const { data, error } = await supabase

@@ -2,11 +2,16 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button, Paper, Stack, Typography } from "@mui/material";
-import { TICKERS } from "@/lib/constants";
 import { getLatestStockPrices } from "@/lib/actions";
 import type { Alert, StockPrice } from "@/lib/stockUtils";
 
-export default function StockHeader({ userEmail }: { userEmail: string | null }) {
+export default function StockHeader({
+  userEmail,
+  tickers,
+}: {
+  userEmail: string | null;
+  tickers: string[];
+}) {
   const [stocks, setStocks] = useState<StockPrice[]>([]);
   const [loading, setLoading] = useState(false);
   const [checkingAlerts, setCheckingAlerts] = useState(false);
@@ -14,13 +19,17 @@ export default function StockHeader({ userEmail }: { userEmail: string | null })
   const [alertsResultIsError, setAlertsResultIsError] = useState(false);
 
   const handleFetchStocks = useCallback(async () => {
+    if (tickers.length === 0) {
+      setStocks([]);
+      return;
+    }
     setLoading(true);
     try {
-      setStocks(await getLatestStockPrices(TICKERS));
+      setStocks(await getLatestStockPrices(tickers));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [tickers]);
 
   useEffect(() => {
     handleFetchStocks();
@@ -32,7 +41,7 @@ export default function StockHeader({ userEmail }: { userEmail: string | null })
     setAlertsResultIsError(false);
     try {
       const [stockPrices, res] = await Promise.all([
-        getLatestStockPrices(TICKERS),
+        tickers.length > 0 ? getLatestStockPrices(tickers) : Promise.resolve([]),
         fetch("/api/cron/stocks", { method: "POST" }),
       ]);
       setStocks(stockPrices);
@@ -63,6 +72,11 @@ export default function StockHeader({ userEmail }: { userEmail: string | null })
   return (
     <Paper elevation={1} sx={{ width: "100%", p: 2, mb: 3 }}>
       <Stack direction="row" spacing={3} sx={{ alignItems: "center", flexWrap: "wrap" }}>
+        {stocks.length === 0 && !loading && (
+          <Typography variant="body2" color="text.secondary">
+            No alerts yet — add one to see its stock price here.
+          </Typography>
+        )}
         {stocks.map((stock) => (
           <Stack key={stock.symbol} direction="row" spacing={0.5} sx={{ alignItems: "baseline" }}>
             <div>{stock.symbol}</div>
