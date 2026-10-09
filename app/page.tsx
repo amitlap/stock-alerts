@@ -3,7 +3,6 @@ import { cookies } from "next/headers";
 import { Paper, Typography } from "@mui/material";
 import UserHeader from "@/components/UserHeader";
 import StockHeader from "@/components/StockHeader";
-import AddAlertForm from "@/components/AddAlertForm";
 import AlertsPanel from "@/components/AlertsPanel";
 
 export default async function Home() {
@@ -32,8 +31,8 @@ export default async function Home() {
         <UserHeader userEmail={user?.email ?? null} />
         <StockHeader userEmail={user?.email ?? null} tickers={tickers} />
       </div>
-      <main className="flex flex-col lg:flex-row gap-6 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1">
-        <Paper component="section" elevation={1} sx={{ p: 4, flex: 2 }}>
+      <main className="flex flex-col w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1">
+        <Paper component="section" elevation={1} sx={{ p: 4 }}>
           {error ? (
             <>
               <Typography variant="h5" component="h1" gutterBottom>
@@ -44,9 +43,6 @@ export default async function Home() {
           ) : (
             <AlertsPanel initialAlerts={alerts ?? []} />
           )}
-        </Paper>
-        <Paper component="section" elevation={1} sx={{ p: 4, flex: 1 }}>
-          <AddAlertForm />
         </Paper>
       </main>
     </div>

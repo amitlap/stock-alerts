@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button, Stack, Typography } from "@mui/material";
+import AddAlertForm from "./AddAlertForm";
 import AlertsList from "./AlertsList";
 import AllAlertsTable from "./AllAlertsTable";
 import { getAllAlerts, type Alert } from "@/lib/actions";
@@ -23,15 +24,29 @@ export default function AlertsPanel({ initialAlerts }: { initialAlerts: Alert[] 
     }
   }
 
+  function handleHideAll() {
+    setAllAlerts(null);
+    setError(null);
+  }
+
   return (
     <>
       <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", mb: 2 }}>
         <Typography variant="h5" component="h1">
           My Alerts
         </Typography>
-        <Button size="small" variant="outlined" onClick={handleShowAll} disabled={loading}>
-          {loading ? "Loading..." : "Show all alerts"}
-        </Button>
+        <Stack direction="row" spacing={1}>
+          {allAlerts ? (
+            <Button size="small" variant="outlined" onClick={handleHideAll}>
+              Hide all alerts
+            </Button>
+          ) : (
+            <Button size="small" variant="outlined" onClick={handleShowAll} disabled={loading}>
+              {loading ? "Loading..." : "Show all alerts"}
+            </Button>
+          )}
+          <AddAlertForm />
+        </Stack>
       </Stack>
       <AlertsList alerts={initialAlerts} />
       {error && (
