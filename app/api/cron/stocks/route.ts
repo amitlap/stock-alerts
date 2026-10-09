@@ -3,8 +3,7 @@ import { Resend } from "resend";
 import { getLatestStockPrices } from "@/lib/actions";
 import { getMatchingAlerts } from "@/lib/stockUtils";
 import { TICKERS } from "@/lib/constants";
-import { createClient } from "@/utils/supabase/server";
-import { cookies } from "next/headers";
+import { createAdminClient } from "@/utils/supabase/admin";
 
 export async function GET(request: Request) {
   // Verify that the request comes from our GitHub Action
@@ -57,8 +56,10 @@ async function checkStocks() {
 
   const stocks = await getLatestStockPrices(TICKERS);
 
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
+  // This route is called by a GitHub Action with no user session, so it needs the
+  // service-role client to bypass RLS; otherwise the deactivation UPDATE below would
+  // silently match 0 rows and alerts would keep re-firing on every run.
+  const supabase = createAdminClient();
   const { data: alerts, error: alertsError } = await supabase
     .from("alerts")
     .select("id, stock, email, price, operator, isActive");
@@ -124,7 +125,7 @@ async function sendAlertEmails(
 // Deactivates alerts once their email has gone out, so they only fire once until re-enabled by the user.
 async function deactivateSentAlerts(
   alertEmails: Awaited<ReturnType<typeof sendAlertEmails>>,
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: ReturnType<typeof createAdminClient>,
 ) {
   const sentAlertIds = alertEmails
     .filter((result) => !result.error)
