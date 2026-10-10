@@ -192,7 +192,7 @@ export default function AlertsList({ alerts }: { alerts: AlertListItem[] }) {
         }}
       />
       <Drawer anchor="right" open={editingId !== null} onClose={closeEditDialog}>
-        <Box sx={{ width: "50vw", display: "flex", flexDirection: "column", height: "100%" }}>
+        <Box sx={{ width: "75vw", display: "flex", flexDirection: "column", height: "100%" }}>
           <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", p: 2 }}>
             <Stack direction="row" spacing={1} sx={{ alignItems: "baseline" }}>
               <Typography variant="h6">Edit Alert</Typography>
