@@ -24,10 +24,8 @@ export default function AlertDetailForm({
   onClose?: () => void;
 }) {
   const router = useRouter();
-  const [stock, setStock] = useState(alert.stock);
   const [operator, setOperator] = useState<AlertOperator>(alert.operator);
   const [price, setPrice] = useState(String(alert.price));
-  const [email, setEmail] = useState(alert.email);
   const [isActive, setIsActive] = useState(alert.isActive);
   const [description, setDescription] = useState(alert.description ?? "");
   const [saving, setSaving] = useState(false);
@@ -35,18 +33,17 @@ export default function AlertDetailForm({
   const [error, setError] = useState<string | null>(null);
 
   const priceValue = Number(price);
-  const canSave =
-    stock.trim() !== "" && email.trim() !== "" && price.trim() !== "" && Number.isFinite(priceValue);
+  const canSave = price.trim() !== "" && Number.isFinite(priceValue);
 
   async function handleSave() {
     setSaving(true);
     setError(null);
     try {
       await updateAlert(alert.id, {
-        stock: stock.trim().toUpperCase(),
+        stock: alert.stock,
         operator,
         price: priceValue,
-        email: email.trim(),
+        email: alert.email,
         isActive,
         description: description.trim() || null,
       });
@@ -82,11 +79,10 @@ export default function AlertDetailForm({
   }
 
   return (
-    <Stack spacing={2} sx={{ maxWidth: 480 }}>
+    <Stack spacing={2}>
       <Typography variant="body2" color="text.secondary">
         Alert #{alert.id} · created {new Date(alert.created_at).toLocaleString()}
       </Typography>
-      <TextField label="Stock" size="small" fullWidth value={stock} onChange={(e) => setStock(e.target.value)} />
       <TextField
         label="Operator"
         size="small"
@@ -108,14 +104,6 @@ export default function AlertDetailForm({
         fullWidth
         value={price}
         onChange={(e) => setPrice(e.target.value)}
-      />
-      <TextField
-        label="Email"
-        size="small"
-        type="email"
-        fullWidth
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
       />
       <TextField
         label="Description"

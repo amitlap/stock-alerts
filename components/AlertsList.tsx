@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Box,
   Button,
@@ -16,7 +17,6 @@ import {
   type GridRowClassNameParams,
 } from "@mui/x-data-grid";
 import AlertDetailForm from "./AlertDetailForm";
-import TradingViewWidget from "./TradingViewWidget";
 import { getAlertById, getLatestStockPrices, removeAlert, type Alert } from "@/lib/actions";
 import { getMatchingAlerts, type AlertOperator, type StockPrice } from "@/lib/stockUtils";
 
@@ -30,6 +30,7 @@ type AlertListItem = {
 };
 
 export default function AlertsList({ alerts }: { alerts: AlertListItem[] }) {
+  const router = useRouter();
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [stocks, setStocks] = useState<StockPrice[]>([]);
   const [pricesLoading, setPricesLoading] = useState(false);
@@ -69,11 +70,6 @@ export default function AlertsList({ alerts }: { alerts: AlertListItem[] }) {
   const matchingAlerts = useMemo(
     () => new Set(getMatchingAlerts(alerts, stocks)),
     [alerts, stocks],
-  );
-
-  const editingStock = useMemo(
-    () => (editingAlert ? stocks.find((s) => s.symbol === editingAlert.stock) : undefined),
-    [editingAlert, stocks],
   );
 
   useEffect(() => {
@@ -180,7 +176,7 @@ export default function AlertsList({ alerts }: { alerts: AlertListItem[] }) {
         loading={pricesLoading}
         density="compact"
         disableRowSelectionOnClick
-        onRowClick={(params) => openEditDialog(params.row.id)}
+        onRowClick={(params) => router.push(`/alerts/${params.row.id}`)}
         getRowClassName={(params: GridRowClassNameParams<AlertListItem>) =>
           matchingAlerts.has(params.row) ? "matching-row" : ""
         }
@@ -192,24 +188,9 @@ export default function AlertsList({ alerts }: { alerts: AlertListItem[] }) {
         }}
       />
       <Drawer anchor="right" open={editingId !== null} onClose={closeEditDialog}>
-        <Box sx={{ width: "75vw", display: "flex", flexDirection: "column", height: "100%" }}>
+        <Box sx={{ width: 420, display: "flex", flexDirection: "column", height: "100%" }}>
           <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", p: 2 }}>
-            <Stack direction="row" spacing={1} sx={{ alignItems: "baseline" }}>
-              <Typography variant="h6">Edit Alert</Typography>
-              {editingAlert && (
-                <>
-                  <Typography variant="body1">{editingAlert.stock}</Typography>
-                  {editingStock?.price != null && (
-                    <Typography
-                      variant="body1"
-                      sx={{ color: (editingStock.change ?? 0) >= 0 ? "success.main" : "error.main" }}
-                    >
-                      ${editingStock.price.toFixed(2)}
-                    </Typography>
-                  )}
-                </>
-              )}
-            </Stack>
+            <Typography variant="h6">Edit Alert</Typography>
             <IconButton size="small" onClick={closeEditDialog} aria-label="Close">
               ✕
             </IconButton>
@@ -219,12 +200,7 @@ export default function AlertsList({ alerts }: { alerts: AlertListItem[] }) {
             {editingLoading && <Typography variant="body2">Loading...</Typography>}
             {editingError && <Typography color="error">{editingError}</Typography>}
             {editingAlert && !editingLoading && (
-              <>
-                <AlertDetailForm alert={editingAlert} onClose={closeEditDialog} />
-                <Box sx={{ height: 400, width: "100%", mt: 3 }}>
-                  <TradingViewWidget ticker={editingAlert.stock} />
-                </Box>
-              </>
+              <AlertDetailForm alert={editingAlert} onClose={closeEditDialog} />
             )}
           </Box>
         </Box>
