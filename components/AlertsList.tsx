@@ -1,18 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
+  Box,
   Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  FormControlLabel,
-  MenuItem,
+  Divider,
+  Drawer,
+  IconButton,
   Stack,
-  Switch,
-  TextField,
   Typography,
 } from "@mui/material";
 import {
@@ -20,10 +15,10 @@ import {
   type GridColDef,
   type GridRowClassNameParams,
 } from "@mui/x-data-grid";
-import { getLatestStockPrices, removeAlert, updateAlert } from "@/lib/actions";
+import AlertDetailForm from "./AlertDetailForm";
+import TradingViewWidget from "./TradingViewWidget";
+import { getAlertById, getLatestStockPrices, removeAlert, type Alert } from "@/lib/actions";
 import { getMatchingAlerts, type AlertOperator, type StockPrice } from "@/lib/stockUtils";
-
-const OPERATORS: AlertOperator[] = [">", "<"];
 
 type AlertListItem = {
   id: number;
@@ -35,19 +30,14 @@ type AlertListItem = {
 };
 
 export default function AlertsList({ alerts }: { alerts: AlertListItem[] }) {
-  const router = useRouter();
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [stocks, setStocks] = useState<StockPrice[]>([]);
   const [pricesLoading, setPricesLoading] = useState(false);
   const [pricesError, setPricesError] = useState<string | null>(null);
-  const [editingAlert, setEditingAlert] = useState<AlertListItem | null>(null);
-  const [editStock, setEditStock] = useState("");
-  const [editOperator, setEditOperator] = useState<AlertOperator>(">");
-  const [editPrice, setEditPrice] = useState("");
-  const [editEmail, setEditEmail] = useState("");
-  const [editIsActive, setEditIsActive] = useState(true);
-  const [editSaving, setEditSaving] = useState(false);
-  const [editError, setEditError] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingAlert, setEditingAlert] = useState<Alert | null>(null);
+  const [editingLoading, setEditingLoading] = useState(false);
+  const [editingError, setEditingError] = useState<string | null>(null);
 
   useEffect(() => {
     const symbols = [...new Set(alerts.map((alert) => alert.stock))];
@@ -81,6 +71,38 @@ export default function AlertsList({ alerts }: { alerts: AlertListItem[] }) {
     [alerts, stocks],
   );
 
+  const editingStock = useMemo(
+    () => (editingAlert ? stocks.find((s) => s.symbol === editingAlert.stock) : undefined),
+    [editingAlert, stocks],
+  );
+
+  useEffect(() => {
+    if (editingId == null) return;
+
+    let cancelled = false;
+    setEditingAlert(null);
+    setEditingLoading(true);
+    setEditingError(null);
+
+    getAlertById(editingId)
+      .then((alert) => {
+        if (cancelled) return;
+        setEditingAlert(alert);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setEditingError(error instanceof Error ? error.message : String(error));
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setEditingLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [editingId]);
+
   async function handleDelete(id: number) {
     setDeletingId(id);
     try {
@@ -90,45 +112,14 @@ export default function AlertsList({ alerts }: { alerts: AlertListItem[] }) {
     }
   }
 
-  function openEditDialog(alert: AlertListItem) {
-    setEditingAlert(alert);
-    setEditStock(alert.stock);
-    setEditOperator(alert.operator ?? ">");
-    setEditPrice(alert.price != null ? String(alert.price) : "");
-    setEditEmail(alert.email);
-    setEditIsActive(alert.isActive ?? true);
-    setEditError(null);
+  function openEditDialog(id: number) {
+    setEditingId(id);
   }
 
   function closeEditDialog() {
+    setEditingId(null);
     setEditingAlert(null);
-  }
-
-  const editPriceValue = Number(editPrice);
-  const canSaveEdit =
-    editStock.trim() !== "" &&
-    editEmail.trim() !== "" &&
-    editPrice.trim() !== "" &&
-    Number.isFinite(editPriceValue);
-
-  async function handleEditSave() {
-    if (!editingAlert) return;
-    setEditSaving(true);
-    setEditError(null);
-    try {
-      await updateAlert(editingAlert.id, {
-        stock: editStock.trim().toUpperCase(),
-        operator: editOperator,
-        price: editPriceValue,
-        email: editEmail.trim(),
-        isActive: editIsActive,
-      });
-      setEditingAlert(null);
-    } catch (err) {
-      setEditError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setEditSaving(false);
-    }
+    setEditingError(null);
   }
 
   const columns: GridColDef<AlertListItem>[] = [
@@ -154,7 +145,7 @@ export default function AlertsList({ alerts }: { alerts: AlertListItem[] }) {
             size="small"
             onClick={(e) => {
               e.stopPropagation();
-              openEditDialog(params.row);
+              openEditDialog(params.row.id);
             }}
           >
             Edit
@@ -189,7 +180,7 @@ export default function AlertsList({ alerts }: { alerts: AlertListItem[] }) {
         loading={pricesLoading}
         density="compact"
         disableRowSelectionOnClick
-        onRowClick={(params) => router.push(`/alerts/${params.row.id}`)}
+        onRowClick={(params) => openEditDialog(params.row.id)}
         getRowClassName={(params: GridRowClassNameParams<AlertListItem>) =>
           matchingAlerts.has(params.row) ? "matching-row" : ""
         }
@@ -200,66 +191,44 @@ export default function AlertsList({ alerts }: { alerts: AlertListItem[] }) {
           "& .MuiDataGrid-row": { cursor: "pointer" },
         }}
       />
-      <Dialog open={editingAlert !== null} onClose={closeEditDialog} fullWidth maxWidth="xs">
-        <DialogTitle>Edit Alert</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            <TextField
-              label="Stock"
-              size="small"
-              fullWidth
-              value={editStock}
-              onChange={(e) => setEditStock(e.target.value)}
-            />
-            <TextField
-              label="Operator"
-              size="small"
-              select
-              fullWidth
-              value={editOperator}
-              onChange={(e) => setEditOperator(e.target.value as AlertOperator)}
-            >
-              {OPERATORS.map((op) => (
-                <MenuItem key={op} value={op}>
-                  {op}
-                </MenuItem>
-              ))}
-            </TextField>
-            <TextField
-              label="Price"
-              size="small"
-              type="number"
-              fullWidth
-              value={editPrice}
-              onChange={(e) => setEditPrice(e.target.value)}
-            />
-            <TextField
-              label="Email"
-              size="small"
-              type="email"
-              fullWidth
-              value={editEmail}
-              onChange={(e) => setEditEmail(e.target.value)}
-            />
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={editIsActive}
-                  onChange={(e) => setEditIsActive(e.target.checked)}
-                />
-              }
-              label="Active"
-            />
-            {editError && <Typography color="error">{editError}</Typography>}
+      <Drawer anchor="right" open={editingId !== null} onClose={closeEditDialog}>
+        <Box sx={{ width: "50vw", display: "flex", flexDirection: "column", height: "100%" }}>
+          <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", p: 2 }}>
+            <Stack direction="row" spacing={1} sx={{ alignItems: "baseline" }}>
+              <Typography variant="h6">Edit Alert</Typography>
+              {editingAlert && (
+                <>
+                  <Typography variant="body1">{editingAlert.stock}</Typography>
+                  {editingStock?.price != null && (
+                    <Typography
+                      variant="body1"
+                      sx={{ color: (editingStock.change ?? 0) >= 0 ? "success.main" : "error.main" }}
+                    >
+                      ${editingStock.price.toFixed(2)}
+                    </Typography>
+                  )}
+                </>
+              )}
+            </Stack>
+            <IconButton size="small" onClick={closeEditDialog} aria-label="Close">
+              ✕
+            </IconButton>
           </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={closeEditDialog}>Cancel</Button>
-          <Button variant="contained" onClick={handleEditSave} disabled={!canSaveEdit || editSaving}>
-            {editSaving ? "Saving..." : "Save"}
-          </Button>
-        </DialogActions>
-      </Dialog>
+          <Divider />
+          <Box sx={{ p: 2, flex: 1, overflowY: "auto" }}>
+            {editingLoading && <Typography variant="body2">Loading...</Typography>}
+            {editingError && <Typography color="error">{editingError}</Typography>}
+            {editingAlert && !editingLoading && (
+              <>
+                <AlertDetailForm alert={editingAlert} onClose={closeEditDialog} />
+                <Box sx={{ height: 400, width: "100%", mt: 3 }}>
+                  <TradingViewWidget ticker={editingAlert.stock} />
+                </Box>
+              </>
+            )}
+          </Box>
+        </Box>
+      </Drawer>
     </>
   );
 }

@@ -16,7 +16,13 @@ import type { AlertOperator } from "@/lib/stockUtils";
 
 const OPERATORS: AlertOperator[] = [">", "<"];
 
-export default function AlertDetailForm({ alert }: { alert: Alert }) {
+export default function AlertDetailForm({
+  alert,
+  onClose,
+}: {
+  alert: Alert;
+  onClose?: () => void;
+}) {
   const router = useRouter();
   const [stock, setStock] = useState(alert.stock);
   const [operator, setOperator] = useState<AlertOperator>(alert.operator);
@@ -44,8 +50,12 @@ export default function AlertDetailForm({ alert }: { alert: Alert }) {
         isActive,
         description: description.trim() || null,
       });
-      router.push("/");
       router.refresh();
+      if (onClose) {
+        onClose();
+      } else {
+        router.push("/");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -58,8 +68,12 @@ export default function AlertDetailForm({ alert }: { alert: Alert }) {
     setError(null);
     try {
       await removeAlert(alert.id);
-      router.push("/");
       router.refresh();
+      if (onClose) {
+        onClose();
+      } else {
+        router.push("/");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -124,7 +138,7 @@ export default function AlertDetailForm({ alert }: { alert: Alert }) {
         <Button color="error" onClick={handleDelete} disabled={saving || deleting}>
           {deleting ? "Deleting..." : "Delete"}
         </Button>
-        <Button onClick={() => router.push("/")} disabled={saving || deleting}>
+        <Button onClick={() => (onClose ? onClose() : router.push("/"))} disabled={saving || deleting}>
           Cancel
         </Button>
       </Stack>
