@@ -4,6 +4,7 @@ import { Paper, Typography } from "@mui/material";
 import UserHeader from "@/components/UserHeader";
 import StockHeader from "@/components/StockHeader";
 import AlertsPanel from "@/components/AlertsPanel";
+import TradingViewWidget from "@/components/TradingViewWidget";
 
 export default async function Home() {
   const cookieStore = await cookies();
@@ -44,6 +45,12 @@ export default async function Home() {
             <AlertsPanel initialAlerts={alerts ?? []} />
           )}
         </Paper>
+
+        {tickers.length > 0 && (
+          <Paper component="section" elevation={1} sx={{ p: 2, mt: 3, height: 600 }}>
+            <TradingViewWidget ticker={tickers[0]} />
+          </Paper>
+        )}
       </main>
     </div>
   );

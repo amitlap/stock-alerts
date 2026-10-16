@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getAlertById, getLatestStockPrices } from "@/lib/actions";
+import { getAlertById, getHistoricalPrices, getLatestStockPrices } from "@/lib/actions";
 import AlertPageView from "@/components/AlertPageView";
 
 export default async function AlertPage({
@@ -15,7 +15,10 @@ export default async function AlertPage({
     notFound();
   }
 
-  const [stock] = await getLatestStockPrices([alert.stock]);
+  const [[stock], candles] = await Promise.all([
+    getLatestStockPrices([alert.stock]),
+    getHistoricalPrices(alert.stock),
+  ]);
 
   return (
     <div className="flex flex-col flex-1 bg-zinc-50 font-sans dark:bg-black">
@@ -23,7 +26,7 @@ export default async function AlertPage({
         <Link href="/" className="text-sm text-zinc-500 hover:underline">
           ← Back to alerts
         </Link>
-        <AlertPageView alert={alert} stock={stock} />
+        <AlertPageView alert={alert} stock={stock} candles={candles} />
       </main>
     </div>
   );

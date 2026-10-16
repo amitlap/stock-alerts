@@ -5,6 +5,14 @@ export type StockPrice = {
   changePercent?: number;
 };
 
+export type Candle = {
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+};
+
 export type AlertOperator = ">" | "<";
 
 export type Alert = {

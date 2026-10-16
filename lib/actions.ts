@@ -4,7 +4,7 @@ import YahooFinance from "yahoo-finance2";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
-import type { AlertOperator, StockPrice } from "./stockUtils";
+import type { AlertOperator, Candle, StockPrice } from "./stockUtils";
 
 const yahooFinance = new YahooFinance();
 const ALERT_OPERATORS: AlertOperator[] = [">", "<"];
@@ -22,6 +22,31 @@ export async function getLatestStockPrices(tickers: string[]): Promise<StockPric
   console.log(list);
 
   return list;
+}
+
+export async function getHistoricalPrices(ticker: string): Promise<Candle[]> {
+  const period2 = new Date();
+  const period1 = new Date();
+  period1.setFullYear(period1.getFullYear() - 1);
+
+  const { quotes } = await yahooFinance.chart(ticker, {
+    period1,
+    period2,
+    interval: "1d",
+  });
+
+  return quotes
+    .filter(
+      (quote) =>
+        quote.open != null && quote.high != null && quote.low != null && quote.close != null,
+    )
+    .map((quote) => ({
+      time: quote.date.toISOString().slice(0, 10),
+      open: quote.open as number,
+      high: quote.high as number,
+      low: quote.low as number,
+      close: quote.close as number,
+    }));
 }
 
 export type NewAlert = {

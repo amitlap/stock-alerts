@@ -13,16 +13,18 @@ import {
   Typography,
 } from "@mui/material";
 import AlertDetailForm from "@/components/AlertDetailForm";
-import TradingViewWidget from "@/components/TradingViewWidget";
+import StockChart from "@/components/StockChart";
 import type { Alert } from "@/lib/actions";
-import type { StockPrice } from "@/lib/stockUtils";
+import type { Candle, StockPrice } from "@/lib/stockUtils";
 
 export default function AlertPageView({
   alert,
   stock,
+  candles,
 }: {
   alert: Alert;
   stock?: StockPrice;
+  candles: Candle[];
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const isUp = (stock?.change ?? 0) >= 0;
@@ -70,7 +72,10 @@ export default function AlertPageView({
       )}
 
       <Paper component="section" elevation={1} sx={{ p: 2, height: 600 }}>
-        <TradingViewWidget ticker={alert.stock} />
+        <StockChart
+          data={candles}
+          onPriceClick={(price) => console.log("Clicked price", alert.stock, price)}
+        />
       </Paper>
 
       <Drawer anchor="right" open={editOpen} onClose={() => setEditOpen(false)}>
