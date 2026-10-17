@@ -11,16 +11,19 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import { removeAlert, updateAlert, type Alert } from "@/lib/actions";
+import { removeAlert, updateAlert, type Alert, type Playbook } from "@/lib/actions";
 import type { AlertOperator } from "@/lib/stockUtils";
 
 const OPERATORS: AlertOperator[] = [">", "<"];
+const NO_PLAYBOOK = "";
 
 export default function AlertDetailForm({
   alert,
+  playbooks = [],
   onClose,
 }: {
   alert: Alert;
+  playbooks?: Playbook[];
   onClose?: () => void;
 }) {
   const router = useRouter();
@@ -28,6 +31,9 @@ export default function AlertDetailForm({
   const [price, setPrice] = useState(String(alert.price));
   const [isActive, setIsActive] = useState(alert.isActive);
   const [description, setDescription] = useState(alert.description ?? "");
+  const [playbookId, setPlaybookId] = useState(
+    alert.playbook_id != null ? String(alert.playbook_id) : NO_PLAYBOOK,
+  );
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +52,7 @@ export default function AlertDetailForm({
         email: alert.email,
         isActive,
         description: description.trim() || null,
+        playbook_id: playbookId === NO_PLAYBOOK ? null : Number(playbookId),
       });
       router.refresh();
       if (onClose) {
@@ -114,6 +121,21 @@ export default function AlertDetailForm({
         value={description}
         onChange={(e) => setDescription(e.target.value)}
       />
+      <TextField
+        label="Playbook"
+        size="small"
+        select
+        fullWidth
+        value={playbookId}
+        onChange={(e) => setPlaybookId(e.target.value)}
+      >
+        <MenuItem value={NO_PLAYBOOK}>No playbook</MenuItem>
+        {playbooks.map((playbook) => (
+          <MenuItem key={playbook.id} value={String(playbook.id)}>
+            {playbook.name}
+          </MenuItem>
+        ))}
+      </TextField>
       <FormControlLabel
         control={<Switch checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />}
         label="Active"

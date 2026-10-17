@@ -1,6 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getAlertById, getHistoricalPrices, getLatestStockPrices } from "@/lib/actions";
+import {
+  getAlertById,
+  getHistoricalPrices,
+  getLatestStockPrices,
+  getPlaybookById,
+  getPlaybooksByEmail,
+} from "@/lib/actions";
 import AlertPageView from "@/components/AlertPageView";
 
 export default async function AlertPage({
@@ -15,9 +21,11 @@ export default async function AlertPage({
     notFound();
   }
 
-  const [[stock], candles] = await Promise.all([
+  const [[stock], candles, playbook, playbooks] = await Promise.all([
     getLatestStockPrices([alert.stock]),
     getHistoricalPrices(alert.stock),
+    alert.playbook_id ? getPlaybookById(alert.playbook_id) : Promise.resolve(null),
+    getPlaybooksByEmail(alert.email),
   ]);
 
   return (
@@ -26,7 +34,7 @@ export default async function AlertPage({
         <Link href="/" className="text-sm text-zinc-500 hover:underline">
           ← Back to alerts
         </Link>
-        <AlertPageView alert={alert} stock={stock} candles={candles} />
+        <AlertPageView alert={alert} stock={stock} candles={candles} playbook={playbook} playbooks={playbooks} />
       </main>
     </div>
   );

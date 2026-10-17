@@ -16,12 +16,21 @@ export default async function Home() {
 
   const alertsQuery = supabase
     .from("alerts")
-    .select("id, created_at, stock, email, price, operator, isActive");
+    .select("id, created_at, stock, email, price, operator, isActive, description, playbook_id");
 
   // Only show alerts belonging to the signed-in user.
   const { data: alerts, error } = user?.email
     ? await alertsQuery.eq("email", user.email)
     : { data: [], error: null };
+
+  // Playbooks the user can assign alerts to from the edit panel.
+  const { data: playbooks } = user?.email
+    ? await supabase
+        .from("playbooks")
+        .select("id, created_at, name, description, email")
+        .eq("email", user.email)
+        .order("created_at", { ascending: false })
+    : { data: [] };
 
   // Show stocks the user has alerts for, so each user sees their own list.
   const tickers = [...new Set((alerts ?? []).map((alert) => alert.stock))];
@@ -42,7 +51,7 @@ export default async function Home() {
               <Typography color="error">Failed to load alerts: {error.message}</Typography>
             </>
           ) : (
-            <AlertsPanel initialAlerts={alerts ?? []} />
+            <AlertsPanel initialAlerts={alerts ?? []} playbooks={playbooks ?? []} />
           )}
         </Paper>
 

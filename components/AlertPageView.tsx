@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   Box,
   Button,
@@ -14,17 +15,21 @@ import {
 } from "@mui/material";
 import AlertDetailForm from "@/components/AlertDetailForm";
 import StockChart from "@/components/StockChart";
-import type { Alert } from "@/lib/actions";
+import type { Alert, Playbook } from "@/lib/actions";
 import type { Candle, StockPrice } from "@/lib/stockUtils";
 
 export default function AlertPageView({
   alert,
   stock,
   candles,
+  playbook,
+  playbooks = [],
 }: {
   alert: Alert;
   stock?: StockPrice;
   candles: Candle[];
+  playbook?: Playbook | null;
+  playbooks?: Playbook[];
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const isUp = (stock?.change ?? 0) >= 0;
@@ -59,6 +64,17 @@ export default function AlertPageView({
         />
         <Chip label={`Alerts when price ${alert.operator} ${alert.price}`} variant="outlined" size="small" />
         <Chip label={alert.email} variant="outlined" size="small" />
+        {playbook && (
+          <Chip
+            component={Link}
+            href={`/playbooks/${playbook.id}`}
+            clickable
+            label={`Playbook: ${playbook.description || `#${playbook.id}`}`}
+            color="primary"
+            variant="outlined"
+            size="small"
+          />
+        )}
         <Box sx={{ flex: 1 }} />
         <Button variant="outlined" size="small" onClick={() => setEditOpen(true)}>
           Edit
@@ -88,7 +104,7 @@ export default function AlertPageView({
           </Stack>
           <Divider />
           <Box sx={{ p: 2, flex: 1, overflowY: "auto" }}>
-            <AlertDetailForm alert={alert} onClose={() => setEditOpen(false)} />
+            <AlertDetailForm alert={alert} playbooks={playbooks} onClose={() => setEditOpen(false)} />
           </Box>
         </Box>
       </Drawer>

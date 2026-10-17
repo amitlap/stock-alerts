@@ -17,7 +17,7 @@ import {
   type GridRowClassNameParams,
 } from "@mui/x-data-grid";
 import AlertDetailForm from "./AlertDetailForm";
-import { getAlertById, getLatestStockPrices, removeAlert, type Alert } from "@/lib/actions";
+import { getAlertById, getLatestStockPrices, removeAlert, type Alert, type Playbook } from "@/lib/actions";
 import { getMatchingAlerts, type AlertOperator, type StockPrice } from "@/lib/stockUtils";
 
 type AlertListItem = {
@@ -29,7 +29,13 @@ type AlertListItem = {
   isActive?: boolean | null;
 };
 
-export default function AlertsList({ alerts }: { alerts: AlertListItem[] }) {
+export default function AlertsList({
+  alerts,
+  playbooks = [],
+}: {
+  alerts: AlertListItem[];
+  playbooks?: Playbook[];
+}) {
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [stocks, setStocks] = useState<StockPrice[]>([]);
@@ -200,7 +206,7 @@ export default function AlertsList({ alerts }: { alerts: AlertListItem[] }) {
             {editingLoading && <Typography variant="body2">Loading...</Typography>}
             {editingError && <Typography color="error">{editingError}</Typography>}
             {editingAlert && !editingLoading && (
-              <AlertDetailForm alert={editingAlert} onClose={closeEditDialog} />
+              <AlertDetailForm alert={editingAlert} playbooks={playbooks} onClose={closeEditDialog} />
             )}
           </Box>
         </Box>

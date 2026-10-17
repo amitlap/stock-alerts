@@ -5,9 +5,15 @@ import { Button, Stack, Typography } from "@mui/material";
 import AddAlertForm from "./AddAlertForm";
 import AlertsList from "./AlertsList";
 import AllAlertsTable from "./AllAlertsTable";
-import { getAllAlerts, type Alert } from "@/lib/actions";
+import { getAllAlerts, type Alert, type Playbook } from "@/lib/actions";
 
-export default function AlertsPanel({ initialAlerts }: { initialAlerts: Alert[] }) {
+export default function AlertsPanel({
+  initialAlerts,
+  playbooks = [],
+}: {
+  initialAlerts: Alert[];
+  playbooks?: Playbook[];
+}) {
   const [allAlerts, setAllAlerts] = useState<Alert[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +54,7 @@ export default function AlertsPanel({ initialAlerts }: { initialAlerts: Alert[] 
           <AddAlertForm />
         </Stack>
       </Stack>
-      <AlertsList alerts={initialAlerts} />
+      <AlertsList alerts={initialAlerts} playbooks={playbooks} />
       {error && (
         <Typography color="error" variant="body2" sx={{ mt: 2 }}>
           Failed to load alerts: {error}

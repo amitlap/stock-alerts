@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button, Paper, Stack, Typography } from "@mui/material";
 import { createClient } from "@/utils/supabase/client";
@@ -24,9 +25,17 @@ export default function UserHeader({ userEmail }: { userEmail: string | null }) 
   return (
     <Paper elevation={1} sx={{ width: "100%", p: 1.5, mb: 2 }}>
       <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between" }}>
-        <Typography variant="body2">
-          {userEmail ? `Connected email: ${userEmail}` : "Guest mode"}
-        </Typography>
+        <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
+          <Typography variant="body2">
+            {userEmail ? `Connected email: ${userEmail}` : "Guest mode"}
+          </Typography>
+          <Link href="/" className="text-sm hover:underline">
+            Alerts
+          </Link>
+          <Link href="/playbooks" className="text-sm hover:underline">
+            Playbooks
+          </Link>
+        </Stack>
         {userEmail && (
           <Button size="small" onClick={handleLogout} disabled={loggingOut}>
             {loggingOut ? "Logging out..." : "Log out"}
