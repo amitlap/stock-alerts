@@ -1,0 +1,50 @@
+import { createClient } from "@/utils/supabase/server";
+import { cookies } from "next/headers";
+import { Paper, Typography } from "@mui/material";
+import AlertsPanel from "@/components/AlertsPanel";
+
+export default async function AlertsPage() {
+  const cookieStore = await cookies();
+  const supabase = createClient(cookieStore);
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const alertsQuery = supabase
+    .from("alerts")
+    .select("id, created_at, stock, email, price, operator, isActive, description, playbook_id");
+
+  // Only show alerts belonging to the signed-in user.
+  const { data: alerts, error } = user?.email
+    ? await alertsQuery.eq("email", user.email)
+    : { data: [], error: null };
+
+  // Playbooks the user can assign alerts to from the edit panel.
+  const { data: playbooks } = user?.email
+    ? await supabase
+        .from("playbooks")
+        .select("id, created_at, name, description, email")
+        .eq("email", user.email)
+        .order("created_at", { ascending: false })
+    : { data: [] };
+
+  return (
+    <div className="flex flex-col flex-1 bg-zinc-50 font-sans dark:bg-black">
+      <main className="flex flex-col w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1">
+        <Paper component="section" elevation={1} sx={{ p: 4 }}>
+          {error ? (
+            <>
+              <Typography variant="h5" component="h1" gutterBottom>
+                My Alerts
+              </Typography>
+              <Typography color="error">Failed to load alerts: {error.message}</Typography>
+            </>
+          ) : (
+            <AlertsPanel initialAlerts={alerts ?? []} playbooks={playbooks ?? []} />
+          )}
+        </Paper>
+      </main>
+    </div>
+  );
+}

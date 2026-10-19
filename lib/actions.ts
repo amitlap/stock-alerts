@@ -95,6 +95,7 @@ export async function addAlert(alert: NewAlert): Promise<Alert> {
   }
 
   revalidatePath("/");
+  revalidatePath("/alerts");
 
   return data;
 }
@@ -131,6 +132,8 @@ export async function updateAlert(id: number, alert: NewAlert): Promise<Alert> {
   }
 
   revalidatePath("/");
+  revalidatePath("/alerts");
+  revalidatePath(`/alerts/${id}`);
 
   return data;
 }
@@ -172,6 +175,7 @@ export async function removeAlert(id: number): Promise<void> {
   }
 
   revalidatePath("/");
+  revalidatePath("/alerts");
 }
 
 export type NewPlaybook = {
@@ -305,6 +309,7 @@ export async function setAlertPlaybook(alertId: number, playbookId: number | nul
   }
 
   revalidatePath("/");
+  revalidatePath("/alerts");
   revalidatePath("/playbooks");
   if (playbookId != null) {
     revalidatePath(`/playbooks/${playbookId}`);

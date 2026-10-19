@@ -18,6 +18,7 @@ import {
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import { removePlaybook, setAlertPlaybook, updatePlaybook, type Playbook } from "@/lib/actions";
 import type { AlertOperator } from "@/lib/stockUtils";
+import AddAlertForm from "./AddAlertForm";
 
 type PlaybookAlert = {
   id: number;
@@ -159,32 +160,40 @@ export default function PlaybookDetailView({
       <Paper component="section" elevation={1} sx={{ p: 4 }}>
         <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", mb: 2 }}>
           <Typography variant="h6">Alerts in this playbook</Typography>
-          {availableAlerts.length > 0 && (
-            <Stack direction="row" spacing={1}>
-              <TextField
-                select
-                size="small"
-                label="Add alert"
-                value={selectedAlertId}
-                onChange={(e) => setSelectedAlertId(e.target.value)}
-                sx={{ minWidth: 200 }}
-              >
-                {availableAlerts.map((alert) => (
-                  <MenuItem key={alert.id} value={alert.id}>
-                    {alert.stock} {alert.operator ?? ">"} {alert.price}
-                  </MenuItem>
-                ))}
-              </TextField>
-              <Button
-                variant="contained"
-                size="small"
-                onClick={handleAddAlert}
-                disabled={!selectedAlertId || linking}
-              >
-                Add
-              </Button>
-            </Stack>
-          )}
+          <Stack direction="row" spacing={1}>
+            {availableAlerts.length > 0 && (
+              <>
+                <TextField
+                  select
+                  size="small"
+                  label="Add alert"
+                  value={selectedAlertId}
+                  onChange={(e) => setSelectedAlertId(e.target.value)}
+                  sx={{ minWidth: 200 }}
+                >
+                  {availableAlerts.map((alert) => (
+                    <MenuItem key={alert.id} value={alert.id}>
+                      {alert.stock} {alert.operator ?? ">"} {alert.price}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <Button
+                  variant="contained"
+                  size="small"
+                  onClick={handleAddAlert}
+                  disabled={!selectedAlertId || linking}
+                >
+                  Add
+                </Button>
+              </>
+            )}
+            <AddAlertForm
+              buttonLabel="Create Alert"
+              defaultEmail={playbook.email}
+              playbookId={playbook.id}
+              onCreated={() => router.refresh()}
+            />
+          </Stack>
         </Stack>
         {linkedAlerts.length === 0 ? (
           <Typography color="text.secondary">No alerts linked yet.</Typography>

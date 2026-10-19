@@ -1,10 +1,13 @@
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
-import { Paper, Typography } from "@mui/material";
-import UserHeader from "@/components/UserHeader";
+import { Paper, Stack, Typography } from "@mui/material";
 import StockHeader from "@/components/StockHeader";
-import AlertsPanel from "@/components/AlertsPanel";
 import TradingViewWidget from "@/components/TradingViewWidget";
+import AllAlertsTable from "@/components/AllAlertsTable";
+import PlaybooksList from "@/components/PlaybooksList";
+import ButtonLink from "@/components/ButtonLink";
+import { getLatestStockPrices } from "@/lib/actions";
+import { getMatchingAlerts } from "@/lib/stockUtils";
 
 export default async function Home() {
   const cookieStore = await cookies();
@@ -14,52 +17,110 @@ export default async function Home() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const alertsQuery = supabase
-    .from("alerts")
-    .select("id, created_at, stock, email, price, operator, isActive, description, playbook_id");
-
   // Only show alerts belonging to the signed-in user.
-  const { data: alerts, error } = user?.email
-    ? await alertsQuery.eq("email", user.email)
+  const { data: alerts, error: alertsError } = user?.email
+    ? await supabase
+        .from("alerts")
+        .select("id, created_at, stock, email, price, operator, isActive, description, playbook_id")
+        .eq("email", user.email)
     : { data: [], error: null };
 
-  // Playbooks the user can assign alerts to from the edit panel.
-  const { data: playbooks } = user?.email
+  // Playbooks belonging to the signed-in user.
+  const { data: playbooks, error: playbooksError } = user?.email
     ? await supabase
         .from("playbooks")
         .select("id, created_at, name, description, email")
         .eq("email", user.email)
         .order("created_at", { ascending: false })
-    : { data: [] };
+    : { data: [], error: null };
 
   // Show stocks the user has alerts for, so each user sees their own list.
   const tickers = [...new Set((alerts ?? []).map((alert) => alert.stock))];
+  const stocks = tickers.length > 0 ? await getLatestStockPrices(tickers) : [];
+  const matchingCount = getMatchingAlerts(alerts ?? [], stocks).length;
+  const activeCount = (alerts ?? []).filter((alert) => alert.isActive !== false).length;
 
   return (
     <div className="flex flex-col flex-1 bg-zinc-50 font-sans dark:bg-black">
       <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-        <UserHeader userEmail={user?.email ?? null} />
         <StockHeader userEmail={user?.email ?? null} tickers={tickers} />
       </div>
-      <main className="flex flex-col w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1">
-        <Paper component="section" elevation={1} sx={{ p: 4 }}>
-          {error ? (
-            <>
-              <Typography variant="h5" component="h1" gutterBottom>
-                My Alerts
-              </Typography>
-              <Typography color="error">Failed to load alerts: {error.message}</Typography>
-            </>
-          ) : (
-            <AlertsPanel initialAlerts={alerts ?? []} playbooks={playbooks ?? []} />
-          )}
-        </Paper>
+      <main className="flex flex-col w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 gap-4">
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+          <Paper sx={{ p: 2, flex: 1 }}>
+            <Typography variant="overline" color="text.secondary">
+              Alerts
+            </Typography>
+            <Typography variant="h4">{alerts?.length ?? 0}</Typography>
+            <Typography variant="body2" color="text.secondary">
+              {activeCount} active
+            </Typography>
+          </Paper>
+          <Paper sx={{ p: 2, flex: 1 }}>
+            <Typography variant="overline" color="text.secondary">
+              Triggered now
+            </Typography>
+            <Typography variant="h4" color={matchingCount > 0 ? "error.main" : undefined}>
+              {matchingCount}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              alerts matching current price
+            </Typography>
+          </Paper>
+          <Paper sx={{ p: 2, flex: 1 }}>
+            <Typography variant="overline" color="text.secondary">
+              Playbooks
+            </Typography>
+            <Typography variant="h4">{playbooks?.length ?? 0}</Typography>
+            <Typography variant="body2" color="text.secondary">
+              saved strategies
+            </Typography>
+          </Paper>
+        </Stack>
 
         {tickers.length > 0 && (
-          <Paper component="section" elevation={1} sx={{ p: 2, mt: 3, height: 600 }}>
+          <Paper component="section" elevation={1} sx={{ p: 2, height: 500 }}>
             <TradingViewWidget ticker={tickers[0]} />
           </Paper>
         )}
+
+        <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+          <Paper component="section" elevation={1} sx={{ p: 3, flex: 1 }}>
+            <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", mb: 2 }}>
+              <Typography variant="h6" component="h2">
+                My Alerts
+              </Typography>
+              <ButtonLink href="/alerts" size="small">
+                Manage alerts
+              </ButtonLink>
+            </Stack>
+            {alertsError ? (
+              <Typography color="error">Failed to load alerts: {alertsError.message}</Typography>
+            ) : (alerts ?? []).length === 0 ? (
+              <Typography color="text.secondary">No alerts yet.</Typography>
+            ) : (
+              <AllAlertsTable alerts={(alerts ?? []).slice(0, 5)} />
+            )}
+          </Paper>
+
+          <Paper component="section" elevation={1} sx={{ p: 3, flex: 1 }}>
+            <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", mb: 2 }}>
+              <Typography variant="h6" component="h2">
+                My Playbooks
+              </Typography>
+              <ButtonLink href="/playbooks" size="small">
+                Manage playbooks
+              </ButtonLink>
+            </Stack>
+            {playbooksError ? (
+              <Typography color="error">Failed to load playbooks: {playbooksError.message}</Typography>
+            ) : (playbooks ?? []).length === 0 ? (
+              <Typography color="text.secondary">No playbooks yet.</Typography>
+            ) : (
+              <PlaybooksList playbooks={(playbooks ?? []).slice(0, 5)} />
+            )}
+          </Paper>
+        </Stack>
       </main>
     </div>
   );

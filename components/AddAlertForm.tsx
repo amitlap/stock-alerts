@@ -19,12 +19,22 @@ import type { AlertOperator } from "@/lib/stockUtils";
 
 const OPERATORS: AlertOperator[] = [">", "<"];
 
-export default function AddAlertForm() {
+export default function AddAlertForm({
+  buttonLabel = "Add Alert",
+  defaultEmail = "",
+  playbookId = null,
+  onCreated,
+}: {
+  buttonLabel?: string;
+  defaultEmail?: string;
+  playbookId?: number | null;
+  onCreated?: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [stock, setStock] = useState("");
   const [operator, setOperator] = useState<AlertOperator>(">");
   const [price, setPrice] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(defaultEmail);
   const [isActive, setIsActive] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +46,7 @@ export default function AddAlertForm() {
     setStock("");
     setOperator(">");
     setPrice("");
-    setEmail("");
+    setEmail(defaultEmail);
     setIsActive(true);
     setError(null);
   }
@@ -54,9 +64,17 @@ export default function AddAlertForm() {
     setSaving(true);
     setError(null);
     try {
-      await addAlert({ stock: stock.trim().toUpperCase(), operator, price: priceValue, email: email.trim(), isActive });
+      await addAlert({
+        stock: stock.trim().toUpperCase(),
+        operator,
+        price: priceValue,
+        email: email.trim(),
+        isActive,
+        playbook_id: playbookId,
+      });
       setOpen(false);
       resetForm();
+      onCreated?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -67,7 +85,7 @@ export default function AddAlertForm() {
   return (
     <>
       <Button variant="contained" onClick={handleOpen}>
-        Add Alert
+        {buttonLabel}
       </Button>
       <Dialog open={open} onClose={handleClose} fullWidth maxWidth="xs">
         <DialogTitle>Add Alert</DialogTitle>
