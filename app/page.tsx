@@ -3,11 +3,14 @@ import { cookies } from "next/headers";
 import { Paper, Stack, Typography } from "@mui/material";
 import StockHeader from "@/components/StockHeader";
 import TradingViewWidget from "@/components/TradingViewWidget";
+import TradingViewSymbolInfo from "@/components/TradingViewSymbolInfo";
+import MarketValuationTable from "@/components/MarketValuationTable";
 import AllAlertsTable from "@/components/AllAlertsTable";
 import PlaybooksList from "@/components/PlaybooksList";
 import ButtonLink from "@/components/ButtonLink";
 import { getLatestStockPrices } from "@/lib/actions";
 import { getMatchingAlerts } from "@/lib/stockUtils";
+import { getMarketValuation } from "@/lib/marketValuation";
 
 export default async function Home() {
   const cookieStore = await cookies();
@@ -39,6 +42,15 @@ export default async function Home() {
   const stocks = tickers.length > 0 ? await getLatestStockPrices(tickers) : [];
   const matchingCount = getMatchingAlerts(alerts ?? [], stocks).length;
   const activeCount = (alerts ?? []).filter((alert) => alert.isActive !== false).length;
+
+  let marketValuation = null;
+  let marketValuationError: string | undefined;
+  try {
+    marketValuation = await getMarketValuation();
+    if (!marketValuation) marketValuationError = "FMP_KEY is not configured.";
+  } catch {
+    marketValuationError = "Unable to fetch market data.";
+  }
 
   return (
     <div className="flex flex-col flex-1 bg-zinc-50 font-sans dark:bg-black">
@@ -83,6 +95,20 @@ export default async function Home() {
             <TradingViewWidget ticker={tickers[0]} />
           </Paper>
         )}
+
+        <Paper component="section" elevation={1} sx={{ p: 2 }}>
+          <Typography variant="h6" component="h2" sx={{ mb: 1 }}>
+            S&amp;P 500 Snapshot
+          </Typography>
+          <MarketValuationTable data={marketValuation} error={marketValuationError} />
+        </Paper>
+
+        <Paper component="section" elevation={1} sx={{ p: 2 }}>
+          <Typography variant="h6" component="h2" sx={{ mb: 1 }}>
+            S&amp;P 500 Chart
+          </Typography>
+          <TradingViewSymbolInfo symbol="SP:SPX" />
+        </Paper>
 
         <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
           <Paper component="section" elevation={1} sx={{ p: 3, flex: 1 }}>
