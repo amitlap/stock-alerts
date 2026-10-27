@@ -19,6 +19,7 @@ import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import { removePlaybook, setAlertPlaybook, updatePlaybook, type Playbook } from "@/lib/actions";
 import type { AlertOperator } from "@/lib/stockUtils";
 import AddAlertForm from "./AddAlertForm";
+import AlertRelationshipGraph from "./AlertRelationshipGraph";
 
 type PlaybookAlert = {
   id: number;
@@ -27,6 +28,7 @@ type PlaybookAlert = {
   price?: number | null;
   operator?: AlertOperator | null;
   isActive?: boolean | null;
+  created_at: string;
 };
 
 export default function PlaybookDetailView({
@@ -132,83 +134,95 @@ export default function PlaybookDetailView({
   ];
 
   return (
-    <Stack spacing={3} sx={{ mt: 2 }}>
-      <Paper component="section" elevation={1} sx={{ p: 4 }}>
-        <Stack direction="row" sx={{ alignItems: "flex-start", justifyContent: "space-between" }}>
-          <Box>
-            <Typography variant="h5" component="h1">
-              {playbook.name || `Playbook #${playbook.id}`}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              created {new Date(playbook.created_at).toLocaleString()} · {playbook.email}
-            </Typography>
-            <Typography variant="body1" sx={{ mt: 2, whiteSpace: "pre-wrap" }}>
-              {playbook.description || "No description yet."}
-            </Typography>
-          </Box>
-          <Stack direction="row" spacing={1}>
-            <Button size="small" variant="outlined" onClick={() => setEditOpen(true)}>
-              Edit
-            </Button>
-            <Button size="small" color="error" onClick={handleDeletePlaybook} disabled={deleting}>
-              {deleting ? "Deleting..." : "Delete"}
-            </Button>
+    <Box
+      sx={{
+        display: "grid",
+        gridTemplateColumns: { xs: "1fr", lg: "minmax(0, 1fr) 420px" },
+        gap: 2,
+        alignItems: "start",
+        mt: 1.5,
+      }}
+    >
+      <Stack spacing={2}>
+        <Paper component="section" elevation={1} sx={{ p: 2.5 }}>
+          <Stack direction="row" sx={{ alignItems: "flex-start", justifyContent: "space-between" }}>
+            <Box>
+              <Typography variant="h5" component="h1">
+                {playbook.name || `Playbook #${playbook.id}`}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                created {new Date(playbook.created_at).toLocaleString()} · {playbook.email}
+              </Typography>
+              <Typography variant="body1" sx={{ mt: 2, whiteSpace: "pre-wrap" }}>
+                {playbook.description || "No description yet."}
+              </Typography>
+            </Box>
+            <Stack direction="row" spacing={1}>
+              <Button size="small" variant="outlined" onClick={() => setEditOpen(true)}>
+                Edit
+              </Button>
+              <Button size="small" color="error" onClick={handleDeletePlaybook} disabled={deleting}>
+                {deleting ? "Deleting..." : "Delete"}
+              </Button>
+            </Stack>
           </Stack>
-        </Stack>
-      </Paper>
+        </Paper>
 
-      <Paper component="section" elevation={1} sx={{ p: 4 }}>
-        <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", mb: 2 }}>
-          <Typography variant="h6">Alerts in this playbook</Typography>
-          <Stack direction="row" spacing={1}>
-            {availableAlerts.length > 0 && (
-              <>
-                <TextField
-                  select
-                  size="small"
-                  label="Add alert"
-                  value={selectedAlertId}
-                  onChange={(e) => setSelectedAlertId(e.target.value)}
-                  sx={{ minWidth: 200 }}
-                >
-                  {availableAlerts.map((alert) => (
-                    <MenuItem key={alert.id} value={alert.id}>
-                      {alert.stock} {alert.operator ?? ">"} {alert.price}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <Button
-                  variant="contained"
-                  size="small"
-                  onClick={handleAddAlert}
-                  disabled={!selectedAlertId || linking}
-                >
-                  Add
-                </Button>
-              </>
-            )}
-            <AddAlertForm
-              buttonLabel="Create Alert"
-              defaultEmail={playbook.email}
-              playbookId={playbook.id}
-              onCreated={() => router.refresh()}
-            />
+        <Paper component="section" elevation={1} sx={{ p: 2.5 }}>
+          <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", mb: 2 }}>
+            <Typography variant="h6">Alerts in this playbook</Typography>
+            <Stack direction="row" spacing={1}>
+              {availableAlerts.length > 0 && (
+                <>
+                  <TextField
+                    select
+                    size="small"
+                    label="Add alert"
+                    value={selectedAlertId}
+                    onChange={(e) => setSelectedAlertId(e.target.value)}
+                    sx={{ minWidth: 200 }}
+                  >
+                    {availableAlerts.map((alert) => (
+                      <MenuItem key={alert.id} value={alert.id}>
+                        {alert.stock} {alert.operator ?? ">"} {alert.price}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                  <Button
+                    variant="contained"
+                    size="small"
+                    onClick={handleAddAlert}
+                    disabled={!selectedAlertId || linking}
+                  >
+                    Add
+                  </Button>
+                </>
+              )}
+              <AddAlertForm
+                buttonLabel="Create Alert"
+                defaultEmail={playbook.email}
+                playbookId={playbook.id}
+                onCreated={() => router.refresh()}
+              />
+            </Stack>
           </Stack>
-        </Stack>
-        {linkedAlerts.length === 0 ? (
-          <Typography color="text.secondary">No alerts linked yet.</Typography>
-        ) : (
-          <DataGrid
-            autoHeight
-            rows={linkedAlerts}
-            columns={columns}
-            density="compact"
-            disableRowSelectionOnClick
-            onRowClick={(params) => router.push(`/alerts/${params.row.id}`)}
-            sx={{ "& .MuiDataGrid-row": { cursor: "pointer" } }}
-          />
-        )}
-      </Paper>
+          {linkedAlerts.length === 0 ? (
+            <Typography color="text.secondary">No alerts linked yet.</Typography>
+          ) : (
+            <DataGrid
+              autoHeight
+              rows={linkedAlerts}
+              columns={columns}
+              density="compact"
+              disableRowSelectionOnClick
+              onRowClick={(params) => router.push(`/alerts/${params.row.id}`)}
+              sx={{ "& .MuiDataGrid-row": { cursor: "pointer" } }}
+            />
+          )}
+        </Paper>
+      </Stack>
+
+      <AlertRelationshipGraph alerts={linkedAlerts} />
 
       <Dialog open={editOpen} onClose={() => setEditOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle>Edit Playbook</DialogTitle>
@@ -240,6 +254,6 @@ export default function PlaybookDetailView({
           </Button>
         </DialogActions>
       </Dialog>
-    </Stack>
+    </Box>
   );
 }
