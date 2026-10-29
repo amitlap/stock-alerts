@@ -1,23 +1,15 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Stack } from "@mui/material";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import { removePlaybook, type Playbook } from "@/lib/actions";
+import { usePendingId } from "@/lib/hooks";
+import { clickableRowsSx } from "./alertGrid";
+import RowActionButton from "./RowActionButton";
 
 export default function PlaybooksList({ playbooks }: { playbooks: Playbook[] }) {
   const router = useRouter();
-  const [deletingId, setDeletingId] = useState<number | null>(null);
-
-  async function handleDelete(id: number) {
-    setDeletingId(id);
-    try {
-      await removePlaybook(id);
-    } finally {
-      setDeletingId(null);
-    }
-  }
+  const deleting = usePendingId();
 
   const columns: GridColDef<Playbook>[] = [
     { field: "name", headerName: "Name", flex: 1 },
@@ -35,20 +27,15 @@ export default function PlaybooksList({ playbooks }: { playbooks: Playbook[] }) 
       filterable: false,
       align: "right",
       flex: 1,
-      renderCell: (params) => (
-        <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end" }}>
-          <Button
-            size="small"
-            color="error"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDelete(params.row.id);
-            }}
-            disabled={deletingId === params.row.id}
-          >
-            {deletingId === params.row.id ? "Deleting..." : "Delete"}
-          </Button>
-        </Stack>
+      renderCell: ({ row }) => (
+        <RowActionButton
+          color="error"
+          onClick={() => deleting.run(row.id, () => removePlaybook(row.id))}
+          pending={deleting.pendingId === row.id}
+          pendingLabel="Deleting..."
+        >
+          Delete
+        </RowActionButton>
       ),
     },
   ];
@@ -61,7 +48,7 @@ export default function PlaybooksList({ playbooks }: { playbooks: Playbook[] }) 
       density="compact"
       disableRowSelectionOnClick
       onRowClick={(params) => router.push(`/playbooks/${params.row.id}`)}
-      sx={{ "& .MuiDataGrid-row": { cursor: "pointer" } }}
+      sx={clickableRowsSx}
     />
   );
 }

@@ -15,6 +15,8 @@ export type Candle = {
 
 export type AlertOperator = ">" | "<";
 
+export const ALERT_OPERATORS: AlertOperator[] = [">", "<"];
+
 export type Alert = {
   stock: string;
   email: string;
@@ -23,6 +25,9 @@ export type Alert = {
   isActive?: boolean | null;
   id?: number;
 };
+
+// An alert as rendered in lists and grids, where it always has an id.
+export type AlertRow = Alert & { id: number };
 
 export function isBigChange(stock: StockPrice) {
   if (!stock) return false;
@@ -50,4 +55,30 @@ export function getMatchingAlerts(alerts: Alert[], stocks: StockPrice[]): Alert[
 
     return meetsCondition(stock.price, alert.operator ?? ">", alert.price);
   });
+}
+
+type AlertCondition = { operator?: string | null; price?: number | null };
+
+// "> 150" — the alert's trigger condition, defaulting the operator to ">".
+export function formatAlertCondition(alert: AlertCondition): string {
+  return `${alert.operator ?? ">"} ${alert.price ?? "?"}`;
+}
+
+// "AAPL > 150"
+export function formatAlertLabel(alert: AlertCondition & { stock: string }): string {
+  return `${alert.stock} ${formatAlertCondition(alert)}`;
+}
+
+export function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+// Parses a price input; null when it's blank or not a finite number.
+export function parsePrice(value: string): number | null {
+  const price = Number(value);
+  return value.trim() !== "" && Number.isFinite(price) ? price : null;
+}
+
+export function priceChangeColor(change?: number | null) {
+  return (change ?? 0) >= 0 ? "success.main" : "error.main";
 }

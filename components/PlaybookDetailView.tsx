@@ -2,19 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Box,
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  MenuItem,
-  Paper,
-  Stack,
-  TextField,
-  Typography,
-} from "@mui/material";
+import { Box, Button, Chip, MenuItem, Paper, Stack, TextField, Typography } from "@mui/material";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import {
   addAlertTransition,
@@ -26,19 +14,22 @@ import {
   type AlertTransition,
   type Playbook,
 } from "@/lib/actions";
-import type { AlertOperator } from "@/lib/stockUtils";
+import { useAsyncAction, usePendingId } from "@/lib/hooks";
+import { formatAlertLabel, getErrorMessage, type AlertRow } from "@/lib/stockUtils";
 import AddAlertForm from "./AddAlertForm";
 import AlertRelationshipGraph from "./AlertRelationshipGraph";
+import FormDialog from "./FormDialog";
+import RowActionButton from "./RowActionButton";
 
-type PlaybookAlert = {
-  id: number;
-  stock: string;
-  email: string;
-  price?: number | null;
-  operator?: AlertOperator | null;
-  isActive?: boolean | null;
-  created_at: string;
-};
+type PlaybookAlert = AlertRow & { created_at: string };
+
+function alertMenuItems(alerts: PlaybookAlert[]) {
+  return alerts.map((alert) => (
+    <MenuItem key={alert.id} value={alert.id}>
+      {formatAlertLabel(alert)}
+    </MenuItem>
+  ));
+}
 
 export default function PlaybookDetailView({
   playbook,
@@ -55,41 +46,30 @@ export default function PlaybookDetailView({
   const [editOpen, setEditOpen] = useState(false);
   const [name, setName] = useState(playbook.name ?? "");
   const [description, setDescription] = useState(playbook.description ?? "");
-  const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [linking, setLinking] = useState(false);
-  const [unlinkingId, setUnlinkingId] = useState<number | null>(null);
   const [selectedAlertId, setSelectedAlertId] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [sourceAlertId, setSourceAlertId] = useState("");
   const [targetAlertId, setTargetAlertId] = useState("");
   const [condition, setCondition] = useState("");
   const [explanation, setExplanation] = useState("");
-  const [addingTransition, setAddingTransition] = useState(false);
-  const [removingTransitionId, setRemovingTransitionId] = useState<number | null>(null);
-  const [transitionError, setTransitionError] = useState<string | null>(null);
-
-  function alertLabel(alert: PlaybookAlert, fallbackId: number): string {
-    if (!alert) return `#${fallbackId}`;
-    return `${alert.stock} ${alert.operator ?? ">"} ${alert.price ?? "?"}`;
-  }
-
+  const savePlaybook = useAsyncAction();
+  // Also holds errors from inline grid edits, so both show in the same place.
+  const addTransition = useAsyncAction();
+  const unlinking = usePendingId();
+  const removingTransition = usePendingId();
 
   async function handleSaveDescription() {
-    setSaving(true);
-    setError(null);
-    try {
-      await updatePlaybook(playbook.id, {
+    const saved = await savePlaybook.run(() =>
+      updatePlaybook(playbook.id, {
         name: name.trim(),
         description: description.trim(),
         email: playbook.email,
-      });
+      }),
+    );
+    if (saved) {
       setEditOpen(false);
       router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -115,85 +95,51 @@ export default function PlaybookDetailView({
     }
   }
 
-  async function handleRemoveAlert(alertId: number) {
-    setUnlinkingId(alertId);
-    try {
+  function handleRemoveAlert(alertId: number) {
+    return unlinking.run(alertId, async () => {
       await setAlertPlaybook(alertId, null);
       router.refresh();
-    } finally {
-      setUnlinkingId(null);
-    }
+    });
   }
 
   async function handleAddTransition() {
     if (!sourceAlertId || !targetAlertId) return;
-    setTransitionError(null);
-    setAddingTransition(true);
-    try {
-      await addAlertTransition({
+    const added = await addTransition.run(() =>
+      addAlertTransition({
         playbook_id: playbook.id,
         source_alert_id: Number(sourceAlertId),
         target_alert_id: Number(targetAlertId),
-        condition: condition.trim() || null,
-        explanation: explanation.trim() || null,
-      });
+        condition,
+        explanation,
+      }),
+    );
+    if (added) {
       setSourceAlertId("");
       setTargetAlertId("");
       setCondition("");
       setExplanation("");
       router.refresh();
-    } catch (err) {
-      setTransitionError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setAddingTransition(false);
     }
   }
 
-  async function handleRemoveTransition(transitionId: number) {
-    setRemovingTransitionId(transitionId);
-    try {
+  function handleRemoveTransition(transitionId: number) {
+    return removingTransition.run(transitionId, async () => {
       await removeAlertTransition(transitionId, playbook.id);
       router.refresh();
-    } finally {
-      setRemovingTransitionId(null);
-    }
+    });
   }
 
-  // Called by the grid after an inline edit; persists only the fields that actually changed.
-  async function handleTransitionRowUpdate(
-    newRow: AlertTransition,
-    oldRow: AlertTransition
-  ): Promise<AlertTransition> {
-    if (newRow.source_alert_id === newRow.target_alert_id) {
-      throw new Error("Source and target alerts must be different");
-    }
-
-    const updates: Parameters<typeof updateAlertTransition>[2] = {};
-    if (newRow.source_alert_id !== oldRow.source_alert_id) {
-      updates.source_alert_id = newRow.source_alert_id;
-    }
-    if (newRow.target_alert_id !== oldRow.target_alert_id) {
-      updates.target_alert_id = newRow.target_alert_id;
-    }
-    if (newRow.condition !== oldRow.condition) {
-      updates.condition = newRow.condition ?? null;
-    }
-    if (newRow.explanation !== oldRow.explanation) {
-      updates.explanation = newRow.explanation ?? null;
-    }
-
-    if (Object.keys(updates).length === 0) {
-      return oldRow;
-    }
-
-    const updated = await updateAlertTransition(newRow.id, playbook.id, updates);
+  // Called by the grid after an inline edit; saves the whole edited row.
+  async function handleTransitionRowUpdate(row: AlertTransition): Promise<AlertTransition> {
+    addTransition.setError(null);
+    const updated = await updateAlertTransition(row.id, row);
     router.refresh();
     return updated;
   }
 
   const alertOptions = linkedAlerts.map((alert) => ({
     value: alert.id,
-    label: alertLabel(alert, alert.id),
+    label: formatAlertLabel(alert),
   }));
 
   const transitionColumns: GridColDef<AlertTransition>[] = [
@@ -223,50 +169,15 @@ export default function PlaybookDetailView({
       filterable: false,
       align: "right",
       flex: 0.6,
-      renderCell: (params) => (
-        <Button
-          size="small"
+      renderCell: ({ row }) => (
+        <RowActionButton
           color="error"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleRemoveTransition(params.row.id);
-          }}
-          disabled={removingTransitionId === params.row.id}
+          onClick={() => handleRemoveTransition(row.id)}
+          pending={removingTransition.pendingId === row.id}
+          pendingLabel="Removing..."
         >
-          {removingTransitionId === params.row.id ? "Removing..." : "Remove"}
-        </Button>
-      ),
-    },
-  ];
-
-  const columns: GridColDef<PlaybookAlert>[] = [
-    { field: "stock", headerName: "Stock", flex: 1 },
-    {
-      field: "condition",
-      headerName: "Condition",
-      flex: 1,
-      valueGetter: (_value, row) => `${row.operator ?? ">"} ${row.price ?? "?"}`,
-    },
-    { field: "isActive", headerName: "Active", type: "boolean", flex: 0.75 },
-    {
-      field: "actions",
-      headerName: "",
-      sortable: false,
-      filterable: false,
-      align: "right",
-      flex: 1,
-      renderCell: (params) => (
-        <Button
-          size="small"
-          color="error"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleRemoveAlert(params.row.id);
-          }}
-          disabled={unlinkingId === params.row.id}
-        >
-          {unlinkingId === params.row.id ? "Removing..." : "Remove"}
-        </Button>
+          Remove
+        </RowActionButton>
       ),
     },
   ];
@@ -275,56 +186,55 @@ export default function PlaybookDetailView({
     <Box
       sx={{
         display: "grid",
-        gridTemplateColumns: { xs: "1fr", lg: "minmax(0, 1fr) 420px" },
+        gridTemplateColumns: { xs: "1fr", lg: "minmax(0, 1fr) 50vw" },
         gap: 2,
         alignItems: "start",
         mt: 1.5,
       }}
     >
-      <Stack spacing={2}>
-        <Paper component="section" elevation={1} sx={{ p: 2.5 }}>
-          <Stack direction="row" sx={{ alignItems: "flex-start", justifyContent: "space-between" }}>
-            <Box>
-              <Typography variant="h5" component="h1">
-                {playbook.name || `Playbook #${playbook.id}`}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                created {new Date(playbook.created_at).toLocaleString()} · {playbook.email}
-              </Typography>
-              <Typography variant="body1" sx={{ mt: 2, whiteSpace: "pre-wrap" }}>
-                {playbook.description || "No description yet."}
-              </Typography>
-            </Box>
-            <Stack direction="row" spacing={1}>
-              <Button size="small" variant="outlined" onClick={() => setEditOpen(true)}>
-                Edit
-              </Button>
-              <Button size="small" color="error" onClick={handleDeletePlaybook} disabled={deleting}>
-                {deleting ? "Deleting..." : "Delete"}
-              </Button>
-            </Stack>
+      <Paper component="section" elevation={1} sx={{ p: 2.5, gridColumn: "1 / -1" }}>
+        <Stack direction="row" spacing={2} sx={{ alignItems: "flex-start", justifyContent: "space-between" }}>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography variant="h5" component="h1">
+              {playbook.name || `Playbook #${playbook.id}`}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              created {new Date(playbook.created_at).toLocaleString()} · {playbook.email}
+            </Typography>
+            <Typography variant="body1" sx={{ mt: 1.5, whiteSpace: "pre-wrap" }}>
+              {playbook.description || "No description yet."}
+            </Typography>
+          </Box>
+          <Stack direction="row" spacing={1} sx={{ flexShrink: 0 }}>
+            <Button size="small" variant="outlined" onClick={() => setEditOpen(true)}>
+              Edit
+            </Button>
+            <Button size="small" color="error" onClick={handleDeletePlaybook} disabled={deleting}>
+              {deleting ? "Deleting..." : "Delete"}
+            </Button>
           </Stack>
-        </Paper>
+        </Stack>
+      </Paper>
 
+      <Stack spacing={2} sx={{ minWidth: 0 }}>
         <Paper component="section" elevation={1} sx={{ p: 2.5 }}>
-          <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", mb: 2 }}>
-            <Typography variant="h6">Alerts in this playbook</Typography>
-            <Stack direction="row" spacing={1}>
+          <Stack
+            direction="row"
+            sx={{ alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 1, mb: 2 }}
+          >
+            <Typography variant="h6">Alerts ({linkedAlerts.length})</Typography>
+            <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
               {availableAlerts.length > 0 && (
                 <>
                   <TextField
                     select
                     size="small"
-                    label="Add alert"
+                    label="Add existing alert"
                     value={selectedAlertId}
                     onChange={(e) => setSelectedAlertId(e.target.value)}
                     sx={{ minWidth: 200 }}
                   >
-                    {availableAlerts.map((alert) => (
-                      <MenuItem key={alert.id} value={alert.id}>
-                        {alert.stock} {alert.operator ?? ">"} {alert.price}
-                      </MenuItem>
-                    ))}
+                    {alertMenuItems(availableAlerts)}
                   </TextField>
                   <Button
                     variant="contained"
@@ -347,27 +257,90 @@ export default function PlaybookDetailView({
           {linkedAlerts.length === 0 ? (
             <Typography color="text.secondary">No alerts linked yet.</Typography>
           ) : (
-            <DataGrid
-              autoHeight
-              rows={linkedAlerts}
-              columns={columns}
-              density="compact"
-              disableRowSelectionOnClick
-              onRowClick={(params) => router.push(`/alerts/${params.row.id}`)}
-              sx={{ "& .MuiDataGrid-row": { cursor: "pointer" } }}
-            />
+            <Stack direction="row" sx={{ flexWrap: "wrap", gap: 1 }}>
+              {linkedAlerts.map((alert) => (
+                <Chip
+                  key={alert.id}
+                  label={formatAlertLabel(alert)}
+                  color={alert.isActive ? "primary" : "default"}
+                  variant="outlined"
+                  onClick={() => router.push(`/alerts/${alert.id}`)}
+                  onDelete={unlinking.pendingId === alert.id ? undefined : () => handleRemoveAlert(alert.id)}
+                />
+              ))}
+            </Stack>
           )}
         </Paper>
 
         <Paper component="section" elevation={1} sx={{ p: 2.5 }}>
-          <Typography variant="h6" sx={{ mb: 2 }}>
-            Alert flow
+          <Typography variant="h6">Transitions</Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 2 }}>
+            When the &quot;From&quot; alert fires, the &quot;To&quot; alert is activated. Double-click a cell to edit.
           </Typography>
 
-          {transitions.length === 0 ? (
+          {linkedAlerts.length < 2 ? (
             <Typography color="text.secondary" sx={{ mb: 2 }}>
-              No transitions recorded yet.
+              Add at least two alerts to create a transition.
             </Typography>
+          ) : (
+            <Stack spacing={1.5} sx={{ mb: 2 }}>
+              <Stack direction="row" spacing={1.5} sx={{ flexWrap: "wrap", rowGap: 1.5 }}>
+                <TextField
+                  select
+                  size="small"
+                  label="From alert"
+                  value={sourceAlertId}
+                  onChange={(e) => setSourceAlertId(e.target.value)}
+                  sx={{ flex: 1, minWidth: 160 }}
+                >
+                  {alertMenuItems(linkedAlerts)}
+                </TextField>
+                <TextField
+                  select
+                  size="small"
+                  label="To alert"
+                  value={targetAlertId}
+                  onChange={(e) => setTargetAlertId(e.target.value)}
+                  sx={{ flex: 1, minWidth: 160 }}
+                >
+                  {alertMenuItems(linkedAlerts.filter((alert) => String(alert.id) !== sourceAlertId))}
+                </TextField>
+              </Stack>
+              <Stack direction="row" spacing={1.5} sx={{ flexWrap: "wrap", rowGap: 1.5 }}>
+                <TextField
+                  size="small"
+                  label="Condition"
+                  value={condition}
+                  onChange={(e) => setCondition(e.target.value)}
+                  sx={{ flex: 1, minWidth: 160 }}
+                />
+                <TextField
+                  size="small"
+                  label="Explanation"
+                  value={explanation}
+                  onChange={(e) => setExplanation(e.target.value)}
+                  sx={{ flex: 2, minWidth: 200 }}
+                />
+                <Button
+                  variant="contained"
+                  size="small"
+                  onClick={handleAddTransition}
+                  disabled={!sourceAlertId || !targetAlertId || addTransition.pending}
+                >
+                  {addTransition.pending ? "Adding..." : "Add transition"}
+                </Button>
+              </Stack>
+            </Stack>
+          )}
+
+          {addTransition.error && (
+            <Typography color="error" sx={{ mb: 2 }}>
+              {addTransition.error}
+            </Typography>
+          )}
+
+          {transitions.length === 0 ? (
+            <Typography color="text.secondary">No transitions yet.</Typography>
           ) : (
             <DataGrid
               autoHeight
@@ -376,110 +349,34 @@ export default function PlaybookDetailView({
               density="compact"
               disableRowSelectionOnClick
               processRowUpdate={handleTransitionRowUpdate}
-              onProcessRowUpdateError={(err) =>
-                setTransitionError(err instanceof Error ? err.message : String(err))
-              }
-              sx={{ mb: 2 }}
+              onProcessRowUpdateError={(err) => addTransition.setError(getErrorMessage(err))}
             />
-          )}
-
-
-          {linkedAlerts.length >= 2 && (
-            <Stack spacing={1.5}>
-              <Stack direction="row" spacing={1.5} sx={{ flexWrap: "wrap" }}>
-                <TextField
-                  select
-                  size="small"
-                  label="From alert"
-                  value={sourceAlertId}
-                  onChange={(e) => setSourceAlertId(e.target.value)}
-                  sx={{ minWidth: 180 }}
-                >
-                  {linkedAlerts.map((alert) => (
-                    <MenuItem key={alert.id} value={alert.id}>
-                      {alert.stock} {alert.operator ?? ">"} {alert.price}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <TextField
-                  select
-                  size="small"
-                  label="To alert"
-                  value={targetAlertId}
-                  onChange={(e) => setTargetAlertId(e.target.value)}
-                  sx={{ minWidth: 180 }}
-                >
-                  {linkedAlerts
-                    .filter((alert) => String(alert.id) !== sourceAlertId)
-                    .map((alert) => (
-                      <MenuItem key={alert.id} value={alert.id}>
-                        {alert.stock} {alert.operator ?? ">"} {alert.price}
-                      </MenuItem>
-                    ))}
-                </TextField>
-              </Stack>
-              <Stack direction="row" spacing={1.5} sx={{ flexWrap: "wrap" }}>
-                <TextField
-                  size="small"
-                  label="Condition"
-                  value={condition}
-                  onChange={(e) => setCondition(e.target.value)}
-                  sx={{ minWidth: 200 }}
-                />
-                <TextField
-                  size="small"
-                  label="Explanation"
-                  value={explanation}
-                  onChange={(e) => setExplanation(e.target.value)}
-                  sx={{ flex: 1, minWidth: 200 }}
-                />
-                <Button
-                  variant="contained"
-                  size="small"
-                  onClick={handleAddTransition}
-                  disabled={!sourceAlertId || !targetAlertId || addingTransition}
-                >
-                  {addingTransition ? "Adding..." : "Add"}
-                </Button>
-              </Stack>
-              {transitionError && <Typography color="error">{transitionError}</Typography>}
-            </Stack>
           )}
         </Paper>
       </Stack>
 
       <AlertRelationshipGraph alerts={linkedAlerts} transitions={transitions} />
 
-      <Dialog open={editOpen} onClose={() => setEditOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Edit Playbook</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            <TextField
-              label="Name"
-              size="small"
-              fullWidth
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-            <TextField
-              label="Description"
-              size="small"
-              fullWidth
-              multiline
-              minRows={3}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-            {error && <Typography color="error">{error}</Typography>}
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handleSaveDescription} disabled={saving}>
-            {saving ? "Saving..." : "Save"}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <FormDialog
+        open={editOpen}
+        title="Edit Playbook"
+        onClose={() => setEditOpen(false)}
+        onSave={handleSaveDescription}
+        saving={savePlaybook.pending}
+        error={savePlaybook.error}
+        maxWidth="sm"
+      >
+        <TextField label="Name" size="small" fullWidth value={name} onChange={(e) => setName(e.target.value)} />
+        <TextField
+          label="Description"
+          size="small"
+          fullWidth
+          multiline
+          minRows={3}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
+      </FormDialog>
     </Box>
   );
 }

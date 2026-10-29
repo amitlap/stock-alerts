@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button, Paper, Stack, TextField, Typography } from "@mui/material";
 import { createClient } from "@/utils/supabase/client";
+import { getErrorMessage } from "@/lib/stockUtils";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -40,7 +41,7 @@ export default function SignupPage() {
       router.push("/");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }

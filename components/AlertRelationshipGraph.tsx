@@ -20,6 +20,7 @@ import {
   type Node,
   type NodeProps,
 } from "@xyflow/react";
+import { formatAlertCondition, formatAlertLabel } from "@/lib/stockUtils";
 
 import "@xyflow/react/dist/style.css";
 
@@ -70,9 +71,9 @@ function buildGraph(
     type: "alert",
     position: { x: index % 2 === 0 ? 0 : NODE_WIDTH - 40, y: index * ROW_HEIGHT },
     data: {
-      label: `${alert.stock} ${alert.operator ?? ">"} ${alert.price ?? "?"}`,
+      label: formatAlertLabel(alert),
       stock: alert.stock,
-      condition: `${alert.operator ?? ">"} ${alert.price ?? "?"}`,
+      condition: formatAlertCondition(alert),
       isActive: alert.isActive !== false,
       createdAt: alert.created_at,
     },

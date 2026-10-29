@@ -3,7 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button, Paper, Stack, Typography } from "@mui/material";
 import { getLatestStockPrices } from "@/lib/actions";
-import type { Alert, StockPrice } from "@/lib/stockUtils";
+import {
+  formatAlertLabel,
+  getErrorMessage,
+  priceChangeColor,
+  type Alert,
+  type StockPrice,
+} from "@/lib/stockUtils";
 
 export default function StockHeader({
   userEmail,
@@ -57,13 +63,11 @@ export default function StockHeader({
       setAlertsResult(
         matchingAlerts.length === 0
           ? "No alerts match the current prices."
-          : `Emailed: ${matchingAlerts.map((alert) => `${alert.stock} ${alert.operator ?? ">"} ${alert.price} (${alert.email})`).join(", ")}`,
+          : `Emailed: ${matchingAlerts.map((alert) => `${formatAlertLabel(alert)} (${alert.email})`).join(", ")}`,
       );
     } catch (error) {
       setAlertsResultIsError(true);
-      setAlertsResult(
-        `Alerts check failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      setAlertsResult(`Alerts check failed: ${getErrorMessage(error)}`);
     } finally {
       setCheckingAlerts(false);
     }
@@ -80,7 +84,7 @@ export default function StockHeader({
         {stocks.map((stock) => (
           <Stack key={stock.symbol} direction="row" spacing={0.5} sx={{ alignItems: "baseline" }}>
             <div>{stock.symbol}</div>
-            <Typography sx={{ color: (stock.change ?? 0) >= 0 ? "success.main" : "error.main" }}>
+            <Typography sx={{ color: priceChangeColor(stock.change) }}>
               ${stock.price?.toFixed(2)}
             </Typography>
           </Stack>

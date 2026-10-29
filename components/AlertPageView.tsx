@@ -2,21 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import {
-  Box,
-  Button,
-  Chip,
-  Divider,
-  Drawer,
-  IconButton,
-  Paper,
-  Stack,
-  Typography,
-} from "@mui/material";
+import { Box, Button, Chip, Paper, Stack, Typography } from "@mui/material";
 import AlertDetailForm from "@/components/AlertDetailForm";
+import SideDrawer from "@/components/SideDrawer";
 import StockChart from "@/components/StockChart";
 import type { Alert, Playbook } from "@/lib/actions";
-import type { Candle, StockPrice } from "@/lib/stockUtils";
+import { formatAlertCondition, priceChangeColor, type Candle, type StockPrice } from "@/lib/stockUtils";
 
 export default function AlertPageView({
   alert,
@@ -33,6 +24,7 @@ export default function AlertPageView({
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const isUp = (stock?.change ?? 0) >= 0;
+  const changeColor = priceChangeColor(stock?.change);
 
   return (
     <>
@@ -46,11 +38,11 @@ export default function AlertPageView({
         </Typography>
         {stock?.price != null && (
           <Stack direction="row" spacing={1} sx={{ alignItems: "baseline" }}>
-            <Typography variant="h5" sx={{ color: isUp ? "success.main" : "error.main" }}>
+            <Typography variant="h5" sx={{ color: changeColor }}>
               ${stock.price.toFixed(2)}
             </Typography>
             {stock.changePercent != null && (
-              <Typography variant="body1" sx={{ color: isUp ? "success.main" : "error.main" }}>
+              <Typography variant="body1" sx={{ color: changeColor }}>
                 {isUp ? "+" : ""}
                 {stock.changePercent.toFixed(2)}%
               </Typography>
@@ -62,7 +54,7 @@ export default function AlertPageView({
           color={alert.isActive ? "success" : "default"}
           size="small"
         />
-        <Chip label={`Alerts when price ${alert.operator} ${alert.price}`} variant="outlined" size="small" />
+        <Chip label={`Alerts when price ${formatAlertCondition(alert)}`} variant="outlined" size="small" />
         <Chip label={alert.email} variant="outlined" size="small" />
         {playbook && (
           <Chip
@@ -94,20 +86,9 @@ export default function AlertPageView({
         />
       </Paper>
 
-      <Drawer anchor="right" open={editOpen} onClose={() => setEditOpen(false)}>
-        <Box sx={{ width: 420, display: "flex", flexDirection: "column", height: "100%" }}>
-          <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", p: 2 }}>
-            <Typography variant="h6">Edit Alert · {alert.stock}</Typography>
-            <IconButton size="small" onClick={() => setEditOpen(false)} aria-label="Close">
-              ✕
-            </IconButton>
-          </Stack>
-          <Divider />
-          <Box sx={{ p: 2, flex: 1, overflowY: "auto" }}>
-            <AlertDetailForm alert={alert} playbooks={playbooks} onClose={() => setEditOpen(false)} />
-          </Box>
-        </Box>
-      </Drawer>
+      <SideDrawer open={editOpen} title={`Edit Alert · ${alert.stock}`} onClose={() => setEditOpen(false)}>
+        <AlertDetailForm alert={alert} playbooks={playbooks} onClose={() => setEditOpen(false)} />
+      </SideDrawer>
     </>
   );
 }

@@ -5,7 +5,9 @@ import { Button, Stack, Typography } from "@mui/material";
 import AddAlertForm from "./AddAlertForm";
 import AlertsList from "./AlertsList";
 import AllAlertsTable from "./AllAlertsTable";
+import PageHeader from "./PageHeader";
 import { getAllAlerts, type Alert, type Playbook } from "@/lib/actions";
+import { useAsyncAction } from "@/lib/hooks";
 
 export default function AlertsPanel({
   initialAlerts,
@@ -15,49 +17,38 @@ export default function AlertsPanel({
   playbooks?: Playbook[];
 }) {
   const [allAlerts, setAllAlerts] = useState<Alert[] | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleShowAll() {
-    setLoading(true);
-    setError(null);
-    try {
-      setAllAlerts(await getAllAlerts());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  }
+  const loadAll = useAsyncAction();
 
   function handleHideAll() {
     setAllAlerts(null);
-    setError(null);
+    loadAll.setError(null);
   }
 
   return (
     <>
-      <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", mb: 2 }}>
-        <Typography variant="h5" component="h1">
-          My Alerts
-        </Typography>
+      <PageHeader title="My Alerts">
         <Stack direction="row" spacing={1}>
           {allAlerts ? (
             <Button size="small" variant="outlined" onClick={handleHideAll}>
               Hide all alerts
             </Button>
           ) : (
-            <Button size="small" variant="outlined" onClick={handleShowAll} disabled={loading}>
-              {loading ? "Loading..." : "Show all alerts"}
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => loadAll.run(async () => setAllAlerts(await getAllAlerts()))}
+              disabled={loadAll.pending}
+            >
+              {loadAll.pending ? "Loading..." : "Show all alerts"}
             </Button>
           )}
           <AddAlertForm />
         </Stack>
-      </Stack>
+      </PageHeader>
       <AlertsList alerts={initialAlerts} playbooks={playbooks} />
-      {error && (
+      {loadAll.error && (
         <Typography color="error" variant="body2" sx={{ mt: 2 }}>
-          Failed to load alerts: {error}
+          Failed to load alerts: {loadAll.error}
         </Typography>
       )}
       {allAlerts && (
@@ -71,4 +62,3 @@ export default function AlertsPanel({
     </>
   );
 }
-

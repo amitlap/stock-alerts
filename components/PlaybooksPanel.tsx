@@ -1,7 +1,7 @@
 "use client";
 
-import { Stack, Typography } from "@mui/material";
 import AddPlaybookForm from "./AddPlaybookForm";
+import PageHeader from "./PageHeader";
 import PlaybooksList from "./PlaybooksList";
 import type { Playbook } from "@/lib/actions";
 
@@ -14,12 +14,9 @@ export default function PlaybooksPanel({
 }) {
   return (
     <>
-      <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", mb: 2 }}>
-        <Typography variant="h5" component="h1">
-          My Playbooks
-        </Typography>
+      <PageHeader title="My Playbooks">
         <AddPlaybookForm userEmail={userEmail} />
-      </Stack>
+      </PageHeader>
       <PlaybooksList playbooks={playbooks} />
     </>
   );

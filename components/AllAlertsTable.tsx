@@ -1,42 +1,22 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { DataGrid, type GridColDef } from "@mui/x-data-grid";
-import type { AlertOperator } from "@/lib/stockUtils";
+import { DataGrid } from "@mui/x-data-grid";
+import type { AlertRow } from "@/lib/stockUtils";
+import { alertColumns, clickableRowsSx } from "./alertGrid";
 
-type ReadOnlyAlert = {
-  id: number;
-  stock: string;
-  email: string;
-  price?: number | null;
-  operator?: AlertOperator | null;
-  isActive?: boolean | null;
-};
-
-const columns: GridColDef<ReadOnlyAlert>[] = [
-  { field: "stock", headerName: "Stock", flex: 1 },
-  {
-    field: "condition",
-    headerName: "Condition",
-    flex: 1,
-    valueGetter: (_value, row) => `${row.operator ?? ">"} ${row.price ?? "?"}`,
-  },
-  { field: "email", headerName: "Email", flex: 1.5 },
-  { field: "isActive", headerName: "Active", type: "boolean", flex: 0.75 },
-];
-
-export default function AllAlertsTable({ alerts }: { alerts: ReadOnlyAlert[] }) {
+export default function AllAlertsTable({ alerts }: { alerts: AlertRow[] }) {
   const router = useRouter();
 
   return (
     <DataGrid
       rows={alerts}
-      columns={columns}
+      columns={alertColumns}
       density="compact"
       disableRowSelectionOnClick
       hideFooterSelectedRowCount
       onRowClick={(params) => router.push(`/alerts/${params.row.id}`)}
-      sx={{ height: 400, overflow: "auto", "& .MuiDataGrid-row": { cursor: "pointer" } }}
+      sx={{ height: 400, overflow: "auto", ...clickableRowsSx }}
     />
   );
 }
