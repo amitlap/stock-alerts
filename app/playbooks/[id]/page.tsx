@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
-import { getAlertsByPlaybook, getPlaybookById } from "@/lib/actions";
+import { getAlertsByPlaybook, getPlaybookById, getTransitionsByPlaybook } from "@/lib/actions";
 import PlaybookDetailView from "@/components/PlaybookDetailView";
 
 export default async function PlaybookPage({
@@ -18,8 +18,9 @@ export default async function PlaybookPage({
   }
 
   const supabase = createClient(await cookies());
-  const [linkedAlerts, { data: availableAlerts }] = await Promise.all([
+  const [linkedAlerts, transitions, { data: availableAlerts }] = await Promise.all([
     getAlertsByPlaybook(playbook.id),
+    getTransitionsByPlaybook(playbook.id),
     supabase
       .from("alerts")
       .select("id, created_at, stock, email, price, operator, isActive")
@@ -37,6 +38,7 @@ export default async function PlaybookPage({
           playbook={playbook}
           linkedAlerts={linkedAlerts}
           availableAlerts={availableAlerts ?? []}
+          transitions={transitions}
         />
       </main>
     </div>

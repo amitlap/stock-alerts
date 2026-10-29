@@ -33,6 +33,15 @@ export type RelatedAlert = {
   created_at: string;
 };
 
+// Minimal shape the graph needs; satisfied by the `AlertTransition` rows from lib/actions.
+export type AlertTransitionEdge = {
+  id: number;
+  source_alert_id: number;
+  target_alert_id: number;
+  condition?: string | null;
+  explanation?: string | null;
+};
+
 type AlertNodeData = {
   label: string;
   stock: string;
@@ -46,8 +55,12 @@ type AlertNode = Node<AlertNodeData, "alert">;
 const NODE_WIDTH = 200;
 const ROW_HEIGHT = 150;
 
-// Lays nodes out newest-at-bottom and chains each alert to the one created right before it.
-function buildGraph(alerts: RelatedAlert[]): { nodes: AlertNode[]; edges: Edge[] } {
+// Lays nodes out newest-at-bottom. Edges come from recorded transitions when present,
+// otherwise alerts are chained to the one created right before them.
+function buildGraph(
+  alerts: RelatedAlert[],
+  transitions: AlertTransitionEdge[]
+): { nodes: AlertNode[]; edges: Edge[] } {
   const ordered = [...alerts].sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
   );
@@ -65,16 +78,32 @@ function buildGraph(alerts: RelatedAlert[]): { nodes: AlertNode[]; edges: Edge[]
     },
   }));
 
-  const edges: Edge[] = ordered.slice(1).map((alert, index) => ({
-    id: `e-${ordered[index].id}-${alert.id}`,
-    source: String(ordered[index].id),
-    target: String(alert.id),
-    type: "smoothstep",
-    markerEnd: { type: MarkerType.ArrowClosed },
-  }));
+  const alertIds = new Set(ordered.map((alert) => String(alert.id)));
+  const validTransitions = transitions.filter(
+    (t) => alertIds.has(String(t.source_alert_id)) && alertIds.has(String(t.target_alert_id))
+  );
+
+  const edges: Edge[] =
+    validTransitions.length > 0
+      ? validTransitions.map((transition) => ({
+          id: `t-${transition.id}`,
+          source: String(transition.source_alert_id),
+          target: String(transition.target_alert_id),
+          type: "smoothstep",
+          label: transition.condition ?? undefined,
+          markerEnd: { type: MarkerType.ArrowClosed },
+        }))
+      : ordered.slice(1).map((alert, index) => ({
+          id: `e-${ordered[index].id}-${alert.id}`,
+          source: String(ordered[index].id),
+          target: String(alert.id),
+          type: "smoothstep",
+          markerEnd: { type: MarkerType.ArrowClosed },
+        }));
 
   return { nodes, edges };
 }
+
 
 function AlertCardNode({ id, data }: NodeProps<AlertNode>) {
   const { updateNodeData } = useReactFlow();
@@ -146,33 +175,39 @@ function AlertCardNode({ id, data }: NodeProps<AlertNode>) {
 
 const nodeTypes = { alert: AlertCardNode };
 
-function AlertRelationshipGraphInner({ alerts }: { alerts: RelatedAlert[] }) {
-  const initial = useMemo(() => buildGraph(alerts), [alerts]);
+function AlertRelationshipGraphInner({
+  alerts,
+  transitions,
+}: {
+  alerts: RelatedAlert[];
+  transitions: AlertTransitionEdge[];
+}) {
+  const initial = useMemo(() => buildGraph(alerts, transitions), [alerts, transitions]);
   const [nodes, setNodes, onNodesChange] = useNodesState<AlertNode>(initial.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initial.edges);
 
-  // Only rebuild from props when the set of linked alerts actually changes,
+  // Only rebuild from props when the linked alerts or transitions actually change,
   // so manual dragging/edits aren't wiped out by unrelated re-renders.
   const signatureRef = useRef(
-    alerts
-      .map((a) => a.id)
+    `${alerts.map((a) => a.id).sort((a, b) => a - b).join(",")}|${transitions
+      .map((t) => t.id)
       .sort((a, b) => a - b)
-      .join(",")
+      .join(",")}`
   );
 
   useEffect(() => {
-    const signature = alerts
-      .map((a) => a.id)
+    const signature = `${alerts.map((a) => a.id).sort((a, b) => a - b).join(",")}|${transitions
+      .map((t) => t.id)
       .sort((a, b) => a - b)
-      .join(",");
+      .join(",")}`;
 
     if (signature !== signatureRef.current) {
       signatureRef.current = signature;
-      const rebuilt = buildGraph(alerts);
+      const rebuilt = buildGraph(alerts, transitions);
       setNodes(rebuilt.nodes);
       setEdges(rebuilt.edges);
     }
-  }, [alerts, setNodes, setEdges]);
+  }, [alerts, transitions, setNodes, setEdges]);
 
   const onConnect = useCallback(
     (connection: Connection) => {
@@ -212,10 +247,10 @@ function AlertRelationshipGraphInner({ alerts }: { alerts: RelatedAlert[] }) {
   );
 
   const resetLayout = useCallback(() => {
-    const rebuilt = buildGraph(alerts);
+    const rebuilt = buildGraph(alerts, transitions);
     setNodes(rebuilt.nodes);
     setEdges(rebuilt.edges);
-  }, [alerts, setNodes, setEdges]);
+  }, [alerts, transitions, setNodes, setEdges]);
 
   return (
     <>
@@ -261,18 +296,26 @@ function AlertRelationshipGraphInner({ alerts }: { alerts: RelatedAlert[] }) {
   );
 }
 
-export default function AlertRelationshipGraph({ alerts }: { alerts: RelatedAlert[] }) {
+export default function AlertRelationshipGraph({
+  alerts,
+  transitions = [],
+}: {
+  alerts: RelatedAlert[];
+  transitions?: AlertTransitionEdge[];
+}) {
   return (
     <Paper component="section" elevation={1} sx={{ p: 2, position: { lg: "sticky" }, top: { lg: 16 } }}>
       <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 600 }}>
         Alert relationships
       </Typography>
       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5 }}>
-        Alerts are chained in creation order. Drag to rearrange or connect alerts manually.
+        {transitions.length > 0
+          ? "Edges reflect recorded alert transitions. Drag to rearrange or connect alerts manually."
+          : "Alerts are chained in creation order. Drag to rearrange or connect alerts manually."}
       </Typography>
 
       <ReactFlowProvider>
-        <AlertRelationshipGraphInner alerts={alerts} />
+        <AlertRelationshipGraphInner alerts={alerts} transitions={transitions} />
       </ReactFlowProvider>
     </Paper>
   );

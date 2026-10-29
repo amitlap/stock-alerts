@@ -16,7 +16,16 @@ import {
   Typography,
 } from "@mui/material";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
-import { removePlaybook, setAlertPlaybook, updatePlaybook, type Playbook } from "@/lib/actions";
+import {
+  addAlertTransition,
+  removeAlertTransition,
+  removePlaybook,
+  setAlertPlaybook,
+  updateAlertTransition,
+  updatePlaybook,
+  type AlertTransition,
+  type Playbook,
+} from "@/lib/actions";
 import type { AlertOperator } from "@/lib/stockUtils";
 import AddAlertForm from "./AddAlertForm";
 import AlertRelationshipGraph from "./AlertRelationshipGraph";
@@ -35,10 +44,12 @@ export default function PlaybookDetailView({
   playbook,
   linkedAlerts,
   availableAlerts,
+  transitions,
 }: {
   playbook: Playbook;
   linkedAlerts: PlaybookAlert[];
   availableAlerts: PlaybookAlert[];
+  transitions: AlertTransition[];
 }) {
   const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
@@ -50,6 +61,19 @@ export default function PlaybookDetailView({
   const [unlinkingId, setUnlinkingId] = useState<number | null>(null);
   const [selectedAlertId, setSelectedAlertId] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [sourceAlertId, setSourceAlertId] = useState("");
+  const [targetAlertId, setTargetAlertId] = useState("");
+  const [condition, setCondition] = useState("");
+  const [explanation, setExplanation] = useState("");
+  const [addingTransition, setAddingTransition] = useState(false);
+  const [removingTransitionId, setRemovingTransitionId] = useState<number | null>(null);
+  const [transitionError, setTransitionError] = useState<string | null>(null);
+
+  function alertLabel(alert: PlaybookAlert, fallbackId: number): string {
+    if (!alert) return `#${fallbackId}`;
+    return `${alert.stock} ${alert.operator ?? ">"} ${alert.price ?? "?"}`;
+  }
+
 
   async function handleSaveDescription() {
     setSaving(true);
@@ -100,6 +124,120 @@ export default function PlaybookDetailView({
       setUnlinkingId(null);
     }
   }
+
+  async function handleAddTransition() {
+    if (!sourceAlertId || !targetAlertId) return;
+    setTransitionError(null);
+    setAddingTransition(true);
+    try {
+      await addAlertTransition({
+        playbook_id: playbook.id,
+        source_alert_id: Number(sourceAlertId),
+        target_alert_id: Number(targetAlertId),
+        condition: condition.trim() || null,
+        explanation: explanation.trim() || null,
+      });
+      setSourceAlertId("");
+      setTargetAlertId("");
+      setCondition("");
+      setExplanation("");
+      router.refresh();
+    } catch (err) {
+      setTransitionError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setAddingTransition(false);
+    }
+  }
+
+  async function handleRemoveTransition(transitionId: number) {
+    setRemovingTransitionId(transitionId);
+    try {
+      await removeAlertTransition(transitionId, playbook.id);
+      router.refresh();
+    } finally {
+      setRemovingTransitionId(null);
+    }
+  }
+
+  // Called by the grid after an inline edit; persists only the fields that actually changed.
+  async function handleTransitionRowUpdate(
+    newRow: AlertTransition,
+    oldRow: AlertTransition
+  ): Promise<AlertTransition> {
+    if (newRow.source_alert_id === newRow.target_alert_id) {
+      throw new Error("Source and target alerts must be different");
+    }
+
+    const updates: Parameters<typeof updateAlertTransition>[2] = {};
+    if (newRow.source_alert_id !== oldRow.source_alert_id) {
+      updates.source_alert_id = newRow.source_alert_id;
+    }
+    if (newRow.target_alert_id !== oldRow.target_alert_id) {
+      updates.target_alert_id = newRow.target_alert_id;
+    }
+    if (newRow.condition !== oldRow.condition) {
+      updates.condition = newRow.condition ?? null;
+    }
+    if (newRow.explanation !== oldRow.explanation) {
+      updates.explanation = newRow.explanation ?? null;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return oldRow;
+    }
+
+    const updated = await updateAlertTransition(newRow.id, playbook.id, updates);
+    router.refresh();
+    return updated;
+  }
+
+  const alertOptions = linkedAlerts.map((alert) => ({
+    value: alert.id,
+    label: alertLabel(alert, alert.id),
+  }));
+
+  const transitionColumns: GridColDef<AlertTransition>[] = [
+    {
+      field: "source_alert_id",
+      headerName: "From",
+      flex: 1,
+      type: "singleSelect",
+      valueOptions: alertOptions,
+      editable: true,
+    },
+    {
+      field: "target_alert_id",
+      headerName: "To",
+      flex: 1,
+      type: "singleSelect",
+      valueOptions: (params) =>
+        alertOptions.filter((option) => option.value !== params.row?.source_alert_id),
+      editable: true,
+    },
+    { field: "condition", headerName: "Condition", flex: 1, editable: true },
+    { field: "explanation", headerName: "Explanation", flex: 1.5, editable: true },
+    {
+      field: "actions",
+      headerName: "",
+      sortable: false,
+      filterable: false,
+      align: "right",
+      flex: 0.6,
+      renderCell: (params) => (
+        <Button
+          size="small"
+          color="error"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleRemoveTransition(params.row.id);
+          }}
+          disabled={removingTransitionId === params.row.id}
+        >
+          {removingTransitionId === params.row.id ? "Removing..." : "Remove"}
+        </Button>
+      ),
+    },
+  ];
 
   const columns: GridColDef<PlaybookAlert>[] = [
     { field: "stock", headerName: "Stock", flex: 1 },
@@ -220,9 +358,97 @@ export default function PlaybookDetailView({
             />
           )}
         </Paper>
+
+        <Paper component="section" elevation={1} sx={{ p: 2.5 }}>
+          <Typography variant="h6" sx={{ mb: 2 }}>
+            Alert flow
+          </Typography>
+
+          {transitions.length === 0 ? (
+            <Typography color="text.secondary" sx={{ mb: 2 }}>
+              No transitions recorded yet.
+            </Typography>
+          ) : (
+            <DataGrid
+              autoHeight
+              rows={transitions}
+              columns={transitionColumns}
+              density="compact"
+              disableRowSelectionOnClick
+              processRowUpdate={handleTransitionRowUpdate}
+              onProcessRowUpdateError={(err) =>
+                setTransitionError(err instanceof Error ? err.message : String(err))
+              }
+              sx={{ mb: 2 }}
+            />
+          )}
+
+
+          {linkedAlerts.length >= 2 && (
+            <Stack spacing={1.5}>
+              <Stack direction="row" spacing={1.5} sx={{ flexWrap: "wrap" }}>
+                <TextField
+                  select
+                  size="small"
+                  label="From alert"
+                  value={sourceAlertId}
+                  onChange={(e) => setSourceAlertId(e.target.value)}
+                  sx={{ minWidth: 180 }}
+                >
+                  {linkedAlerts.map((alert) => (
+                    <MenuItem key={alert.id} value={alert.id}>
+                      {alert.stock} {alert.operator ?? ">"} {alert.price}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <TextField
+                  select
+                  size="small"
+                  label="To alert"
+                  value={targetAlertId}
+                  onChange={(e) => setTargetAlertId(e.target.value)}
+                  sx={{ minWidth: 180 }}
+                >
+                  {linkedAlerts
+                    .filter((alert) => String(alert.id) !== sourceAlertId)
+                    .map((alert) => (
+                      <MenuItem key={alert.id} value={alert.id}>
+                        {alert.stock} {alert.operator ?? ">"} {alert.price}
+                      </MenuItem>
+                    ))}
+                </TextField>
+              </Stack>
+              <Stack direction="row" spacing={1.5} sx={{ flexWrap: "wrap" }}>
+                <TextField
+                  size="small"
+                  label="Condition"
+                  value={condition}
+                  onChange={(e) => setCondition(e.target.value)}
+                  sx={{ minWidth: 200 }}
+                />
+                <TextField
+                  size="small"
+                  label="Explanation"
+                  value={explanation}
+                  onChange={(e) => setExplanation(e.target.value)}
+                  sx={{ flex: 1, minWidth: 200 }}
+                />
+                <Button
+                  variant="contained"
+                  size="small"
+                  onClick={handleAddTransition}
+                  disabled={!sourceAlertId || !targetAlertId || addingTransition}
+                >
+                  {addingTransition ? "Adding..." : "Add"}
+                </Button>
+              </Stack>
+              {transitionError && <Typography color="error">{transitionError}</Typography>}
+            </Stack>
+          )}
+        </Paper>
       </Stack>
 
-      <AlertRelationshipGraph alerts={linkedAlerts} />
+      <AlertRelationshipGraph alerts={linkedAlerts} transitions={transitions} />
 
       <Dialog open={editOpen} onClose={() => setEditOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle>Edit Playbook</DialogTitle>

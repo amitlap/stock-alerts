@@ -316,3 +316,115 @@ export async function setAlertPlaybook(alertId: number, playbookId: number | nul
   }
 }
 
+export type NewAlertTransition = {
+  playbook_id: number;
+  source_alert_id: number;
+  target_alert_id: number;
+  condition?: string | null;
+  explanation?: string | null;
+};
+
+export type AlertTransition = NewAlertTransition & {
+  id: number;
+  created_at: string;
+};
+
+export async function getTransitionsByPlaybook(playbookId: number): Promise<AlertTransition[]> {
+  const supabase = createClient(await cookies());
+  const { data, error } = await supabase
+    .from("alert_transitions")
+    .select("id, created_at, playbook_id, source_alert_id, target_alert_id, condition, explanation")
+    .eq("playbook_id", playbookId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data ?? [];
+}
+
+export async function addAlertTransition(transition: NewAlertTransition): Promise<AlertTransition> {
+  if (!transition.source_alert_id || !transition.target_alert_id) {
+    throw new Error("Source and target alerts are required");
+  }
+  if (transition.source_alert_id === transition.target_alert_id) {
+    throw new Error("Source and target alerts must be different");
+  }
+
+  const supabase = createClient(await cookies());
+  const { data, error } = await supabase
+    .from("alert_transitions")
+    .insert({
+      playbook_id: transition.playbook_id,
+      source_alert_id: transition.source_alert_id,
+      target_alert_id: transition.target_alert_id,
+      condition: transition.condition?.trim() || null,
+      explanation: transition.explanation?.trim() || null,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath(`/playbooks/${transition.playbook_id}`);
+
+  return data;
+}
+
+export type AlertTransitionUpdate = Partial<{
+  source_alert_id: number;
+  target_alert_id: number;
+  condition: string | null;
+  explanation: string | null;
+}>;
+
+export async function updateAlertTransition(
+  id: number,
+  playbookId: number,
+  updates: AlertTransitionUpdate
+): Promise<AlertTransition> {
+  const patch: Record<string, unknown> = {};
+  if (updates.source_alert_id !== undefined) patch.source_alert_id = updates.source_alert_id;
+  if (updates.target_alert_id !== undefined) patch.target_alert_id = updates.target_alert_id;
+  if (updates.condition !== undefined) patch.condition = updates.condition?.trim() || null;
+  if (updates.explanation !== undefined) patch.explanation = updates.explanation?.trim() || null;
+
+  if (
+    patch.source_alert_id != null &&
+    patch.target_alert_id != null &&
+    patch.source_alert_id === patch.target_alert_id
+  ) {
+    throw new Error("Source and target alerts must be different");
+  }
+
+  const supabase = createClient(await cookies());
+  const { data, error } = await supabase
+    .from("alert_transitions")
+    .update(patch)
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath(`/playbooks/${playbookId}`);
+
+  return data;
+}
+
+
+export async function removeAlertTransition(id: number, playbookId: number): Promise<void> {
+  const supabase = createClient(await cookies());
+  const { error } = await supabase.from("alert_transitions").delete().eq("id", id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath(`/playbooks/${playbookId}`);
+}
+
