@@ -23,11 +23,9 @@ export type Alert = {
   price?: number | null;
   operator?: AlertOperator | null;
   isActive?: boolean | null;
+  triggered_at?: string | null;
   id?: number;
 };
-
-// An alert as rendered in lists and grids, where it always has an id.
-export type AlertRow = Alert & { id: number };
 
 export function isBigChange(stock: StockPrice) {
   if (!stock) return false;
@@ -46,7 +44,7 @@ function meetsCondition(currentPrice: number, operator: AlertOperator, targetPri
 }
 
 // Alerts whose condition (=, >, <) against the target price is met by the stock's current live price.
-export function getMatchingAlerts(alerts: Alert[], stocks: StockPrice[]): Alert[] {
+export function getMatchingAlerts<T extends Alert>(alerts: T[], stocks: StockPrice[]): T[] {
   return alerts.filter((alert) => {
     if (alert.isActive === false) return false;
 
@@ -81,4 +79,26 @@ export function parsePrice(value: string): number | null {
 
 export function priceChangeColor(change?: number | null) {
   return (change ?? 0) >= 0 ? "success.main" : "error.main";
+}
+
+// A playbook step is "watching" while active, "done" once it fired, and "waiting" until a transition turns it on.
+export type StepStatus = "waiting" | "watching" | "done";
+
+type StepState = Pick<Alert, "isActive" | "triggered_at">;
+
+export function getStepStatus(step: StepState): StepStatus {
+  if (step.isActive !== false) return "watching";
+  return step.triggered_at ? "done" : "waiting";
+}
+
+export const STEP_STATUS_LABELS: Record<StepStatus, string> = {
+  waiting: "Waiting",
+  watching: "Watching",
+  done: "Done",
+};
+
+export function getPlaybookProgress(steps: StepState[]) {
+  const counts: Record<StepStatus, number> = { waiting: 0, watching: 0, done: 0 };
+  for (const step of steps) counts[getStepStatus(step)]++;
+  return { ...counts, total: steps.length };
 }

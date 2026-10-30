@@ -6,11 +6,14 @@ import {
   formatAlertLabel,
   getErrorMessage,
   getMatchingAlerts,
+  type Alert,
 } from "@/lib/stockUtils";
-import { TICKERS } from "@/lib/constants";
 import { createAdminClient } from "@/utils/supabase/admin";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
+
+// An active step that matched, with the name of the playbook it belongs to.
+type MatchedAlert = Alert & { playbooks?: { name: string | null } | null };
 
 export async function GET(request: Request) {
   // Verify that the request comes from our GitHub Action
@@ -59,20 +62,24 @@ async function checkStocks() {
     throw new Error("RESEND_API_KEY must be configured");
   }
 
-  const stocks = await getLatestStockPrices(TICKERS);
-
   // This route is called by a GitHub Action with no user session, so it needs the
   // service-role client to bypass RLS; otherwise the deactivation UPDATE below would
   // silently match 0 rows and alerts would keep re-firing on every run.
   const supabase = createAdminClient();
   const { data: alerts, error: alertsError } = await supabase
     .from("alerts")
-    .select("id, stock, email, price, operator, isActive");
+    .select("id, stock, email, price, operator, isActive, playbooks(name)")
+    .eq("isActive", true)
+    // A step belongs to one playbook, so the join is a single object, not the array Supabase assumes.
+    .overrideTypes<MatchedAlert[], { merge: false }>();
 
   if (alertsError) {
     throw new Error(alertsError.message);
   }
 
+  // Only the stocks some playbook step is currently watching.
+  const tickers = [...new Set((alerts ?? []).map((alert) => alert.stock))];
+  const stocks = tickers.length > 0 ? await getLatestStockPrices(tickers) : [];
   const matchingAlerts = getMatchingAlerts(alerts ?? [], stocks);
   console.log(
     "Stocks fulfilling alert conditions:",
@@ -80,7 +87,7 @@ async function checkStocks() {
   );
 
   const alertEmails = await sendAlertEmails(matchingAlerts, stocks, emailKey, emailFrom);
-  const sentAlertIds = await deactivateSentAlerts(alertEmails, supabase);
+  const sentAlertIds = await completeSentAlerts(alertEmails, supabase);
   await activateTargetAlerts(sentAlertIds, supabase);
 
   console.log("Stock check completed!");
@@ -90,7 +97,7 @@ async function checkStocks() {
 
 // Sends one email per alert address, listing the stocks whose condition it matched.
 async function sendAlertEmails(
-  matchingAlerts: Awaited<ReturnType<typeof getMatchingAlerts>>,
+  matchingAlerts: MatchedAlert[],
   stocks: Awaited<ReturnType<typeof getLatestStockPrices>>,
   emailKey: string,
   emailFrom: string,
@@ -107,15 +114,15 @@ async function sendAlertEmails(
     const rows = alertsForEmail
       .map((alert) => {
         const stock = stocks.find((s) => s.symbol === alert.stock);
-        return `<tr><td>${alert.stock}</td><td>${formatAlertCondition(alert)}</td><td>$${stock?.price?.toFixed(2) ?? "N/A"}</td></tr>`;
+        return `<tr><td>${alert.playbooks?.name ?? ""}</td><td>${alert.stock}</td><td>${formatAlertCondition(alert)}</td><td>$${stock?.price?.toFixed(2) ?? "N/A"}</td></tr>`;
       })
       .join("");
 
     const { data, error } = await resend.emails.send({
       from: emailFrom,
       to: [email],
-      subject: "Your stock alert was triggered",
-      html: `<h1>Stock alert triggered</h1><table><thead><tr><th>Symbol</th><th>Condition</th><th>Current price</th></tr></thead><tbody>${rows}</tbody></table>`,
+      subject: "A playbook step was triggered",
+      html: `<h1>Playbook step triggered</h1><table><thead><tr><th>Playbook</th><th>Symbol</th><th>Condition</th><th>Current price</th></tr></thead><tbody>${rows}</tbody></table>`,
     });
 
     if (error) {
@@ -128,8 +135,8 @@ async function sendAlertEmails(
   return results;
 }
 
-// Deactivates alerts once their email has gone out, so they only fire once until re-enabled by the user.
-async function deactivateSentAlerts(
+// Marks alerts done once their email has gone out: switched off, with the time they fired.
+async function completeSentAlerts(
   alertEmails: Awaited<ReturnType<typeof sendAlertEmails>>,
   supabase: AdminClient,
 ) {
@@ -139,8 +146,11 @@ async function deactivateSentAlerts(
     .map((alert) => alert.id)
     .filter((id): id is number => id != null);
 
-  const deactivated = await setAlertsActive(supabase, sentAlertIds, false);
-  return deactivated ? sentAlertIds : [];
+  const completed = await updateAlerts(supabase, sentAlertIds, {
+    isActive: false,
+    triggered_at: new Date().toISOString(),
+  });
+  return completed ? sentAlertIds : [];
 }
 
 // Activates the playbook's next alerts: every target of a transition whose source alert just fired.
@@ -165,19 +175,23 @@ async function activateTargetAlerts(
     (id) => !sentAlertIds.includes(id),
   );
 
-  if (await setAlertsActive(supabase, targetIds, true)) {
+  if (await updateAlerts(supabase, targetIds, { isActive: true })) {
     console.log("Activated target alerts:", targetIds);
   }
 }
 
-// Sets isActive on the given alerts; returns false when there was nothing to update or the update failed.
-async function setAlertsActive(supabase: AdminClient, ids: number[], isActive: boolean) {
+// Applies `patch` to the given alerts; returns false when there was nothing to update or the update failed.
+async function updateAlerts(
+  supabase: AdminClient,
+  ids: number[],
+  patch: { isActive: boolean; triggered_at?: string },
+) {
   if (ids.length === 0) return false;
 
-  const { error } = await supabase.from("alerts").update({ isActive }).in("id", ids);
+  const { error } = await supabase.from("alerts").update(patch).in("id", ids);
 
   if (error) {
-    console.error(`Failed to set isActive=${isActive} on alerts:`, error.message);
+    console.error(`Failed to update alerts ${ids.join(", ")}:`, error.message);
     return false;
   }
 

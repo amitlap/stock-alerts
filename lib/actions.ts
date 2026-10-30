@@ -4,10 +4,9 @@ import YahooFinance from "yahoo-finance2";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/utils/supabase/server";
-import type { AlertOperator, Candle, StockPrice } from "./stockUtils";
+import { ALERT_OPERATORS, type AlertOperator, type Candle, type StockPrice } from "./stockUtils";
 
 const yahooFinance = new YahooFinance();
-const ALERT_OPERATORS: AlertOperator[] = [">", "<"];
 
 export async function getLatestStockPrices(tickers: string[]): Promise<StockPrice[]> {
   const quotes = await yahooFinance.quote(tickers);
@@ -56,15 +55,26 @@ export type NewAlert = {
   email: string;
   isActive: boolean;
   description?: string | null;
-  playbook_id?: number | null;
+  playbook_id: number;
 };
 
+// An alert is one step of a playbook; triggered_at records when it last fired.
 export type Alert = NewAlert & {
   id: number;
   created_at: string;
+  triggered_at: string | null;
 };
 
-export async function addAlert(alert: NewAlert): Promise<Alert> {
+const ALERT_COLUMNS =
+  "id, created_at, stock, email, price, operator, isActive, description, playbook_id, triggered_at";
+
+// Playbooks, their steps and the dashboard all show the same data, so refresh every page.
+function revalidateApp() {
+  revalidatePath("/", "layout");
+}
+
+// Validates an alert and normalizes the fields a user can edit.
+function toAlertFields(alert: Omit<NewAlert, "playbook_id">) {
   if (!alert.stock.trim() || !alert.email.trim()) {
     throw new Error("Stock and email are required");
   }
@@ -75,95 +85,61 @@ export async function addAlert(alert: NewAlert): Promise<Alert> {
     throw new Error("Invalid operator");
   }
 
+  return {
+    stock: alert.stock.trim().toUpperCase(),
+    price: alert.price,
+    operator: alert.operator,
+    email: alert.email.trim(),
+    isActive: alert.isActive,
+    description: alert.description?.trim() || null,
+  };
+}
+
+export async function addAlert(alert: NewAlert): Promise<Alert> {
   const supabase = createClient(await cookies());
   const { data, error } = await supabase
     .from("alerts")
-    .insert({
-      stock: alert.stock.trim(),
-      price: alert.price,
-      operator: alert.operator,
-      email: alert.email.trim(),
-      isActive: alert.isActive,
-      description: alert.description,
-      playbook_id: alert.playbook_id ?? null,
-    })
-    .select()
+    .insert({ ...toAlertFields(alert), playbook_id: alert.playbook_id })
+    .select(ALERT_COLUMNS)
     .single();
 
   if (error) {
     throw new Error(error.message);
   }
 
-  revalidatePath("/");
-  revalidatePath("/alerts");
+  revalidateApp();
 
   return data;
 }
 
+// Updates a step's editable fields; a step stays in the playbook it was created in.
 export async function updateAlert(id: number, alert: NewAlert): Promise<Alert> {
-  if (!alert.stock.trim() || !alert.email.trim()) {
-    throw new Error("Stock and email are required");
-  }
-  if (!Number.isFinite(alert.price)) {
-    throw new Error("Price must be a number");
-  }
-  if (!ALERT_OPERATORS.includes(alert.operator)) {
-    throw new Error("Invalid operator");
-  }
-
   const supabase = createClient(await cookies());
   const { data, error } = await supabase
     .from("alerts")
-    .update({
-      stock: alert.stock.trim(),
-      price: alert.price,
-      operator: alert.operator,
-      email: alert.email.trim(),
-      isActive: alert.isActive,
-      description: alert.description,
-      playbook_id: alert.playbook_id ?? null,
-    })
+    .update(toAlertFields(alert))
     .eq("id", id)
-    .select()
+    .select(ALERT_COLUMNS)
     .single();
 
   if (error) {
     throw new Error(error.message);
   }
 
-  revalidatePath("/");
-  revalidatePath("/alerts");
-  revalidatePath(`/alerts/${id}`);
+  revalidateApp();
 
   return data;
 }
 
 export async function getAlertById(id: number): Promise<Alert | null> {
   const supabase = createClient(await cookies());
-  const { data, error } = await supabase
-    .from("alerts")
-    .select("id, created_at, stock, email, price, operator, isActive, description, playbook_id")
-    .eq("id", id)
-    .maybeSingle();
+  const { data, error } = await supabase.from("alerts").select(ALERT_COLUMNS).eq("id", id).maybeSingle();
 
   if (error) {
     throw new Error(error.message);
   }
 
   return data;
-}
-
-export async function getAllAlerts(): Promise<Alert[]> {
-  const supabase = createClient(await cookies());
-  const { data, error } = await supabase
-    .from("alerts")
-    .select("id, created_at, stock, email, price, operator, isActive");
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return data ?? [];
 }
 
 export async function removeAlert(id: number): Promise<void> {
@@ -174,8 +150,7 @@ export async function removeAlert(id: number): Promise<void> {
     throw new Error(error.message);
   }
 
-  revalidatePath("/");
-  revalidatePath("/alerts");
+  revalidateApp();
 }
 
 export type NewPlaybook = {
@@ -189,44 +164,51 @@ export type Playbook = NewPlaybook & {
   created_at: string;
 };
 
-export async function addPlaybook(playbook: NewPlaybook): Promise<Playbook> {
-  if (!playbook.name.trim() || !playbook.description.trim() || !playbook.email.trim()) {
-    throw new Error("Name, description and email are required");
+// The first step a new playbook starts watching.
+export type FirstStep = Pick<NewAlert, "stock" | "operator" | "price">;
+
+function toPlaybookFields(playbook: NewPlaybook) {
+  if (!playbook.name.trim() || !playbook.email.trim()) {
+    throw new Error("Name and email are required");
   }
 
+  return {
+    name: playbook.name.trim(),
+    description: playbook.description.trim(),
+    email: playbook.email.trim(),
+  };
+}
+
+// Creates a playbook together with its first, active step.
+export async function addPlaybook(playbook: NewPlaybook, firstStep: FirstStep): Promise<Playbook> {
+  const fields = toPlaybookFields(playbook);
+  const stepFields = toAlertFields({ ...firstStep, email: fields.email, isActive: true });
+
   const supabase = createClient(await cookies());
-  const { data, error } = await supabase
-    .from("playbooks")
-    .insert({
-      name: playbook.name.trim(),
-      description: playbook.description.trim(),
-      email: playbook.email.trim(),
-    })
-    .select()
-    .single();
+  const { data, error } = await supabase.from("playbooks").insert(fields).select().single();
 
   if (error) {
     throw new Error(error.message);
   }
 
-  revalidatePath("/playbooks");
+  const { error: stepError } = await supabase.from("alerts").insert({ ...stepFields, playbook_id: data.id });
+
+  if (stepError) {
+    // Don't leave a playbook with no steps behind.
+    await supabase.from("playbooks").delete().eq("id", data.id);
+    throw new Error(stepError.message);
+  }
+
+  revalidateApp();
 
   return data;
 }
 
 export async function updatePlaybook(id: number, playbook: NewPlaybook): Promise<Playbook> {
-  if (!playbook.name.trim() || !playbook.description.trim() || !playbook.email.trim()) {
-    throw new Error("Name, description and email are required");
-  }
-
   const supabase = createClient(await cookies());
   const { data, error } = await supabase
     .from("playbooks")
-    .update({
-      name: playbook.name.trim(),
-      description: playbook.description.trim(),
-      email: playbook.email.trim(),
-    })
+    .update(toPlaybookFields(playbook))
     .eq("id", id)
     .select()
     .single();
@@ -235,8 +217,7 @@ export async function updatePlaybook(id: number, playbook: NewPlaybook): Promise
     throw new Error(error.message);
   }
 
-  revalidatePath("/playbooks");
-  revalidatePath(`/playbooks/${id}`);
+  revalidateApp();
 
   return data;
 }
@@ -256,11 +237,14 @@ export async function getPlaybookById(id: number): Promise<Playbook | null> {
   return data;
 }
 
-export async function getPlaybooksByEmail(email: string): Promise<Playbook[]> {
+export type PlaybookWithSteps = Playbook & { alerts: Alert[] };
+
+// The user's playbooks, newest first, each with its steps (for progress in lists and the dashboard).
+export async function getPlaybooksWithSteps(email: string): Promise<PlaybookWithSteps[]> {
   const supabase = createClient(await cookies());
   const { data, error } = await supabase
     .from("playbooks")
-    .select("id, created_at, name, description, email")
+    .select(`id, created_at, name, description, email, alerts(${ALERT_COLUMNS})`)
     .eq("email", email)
     .order("created_at", { ascending: false });
 
@@ -271,6 +255,7 @@ export async function getPlaybooksByEmail(email: string): Promise<Playbook[]> {
   return data ?? [];
 }
 
+// Deleting a playbook also deletes its steps and transitions (on delete cascade).
 export async function removePlaybook(id: number): Promise<void> {
   const supabase = createClient(await cookies());
   const { error } = await supabase.from("playbooks").delete().eq("id", id);
@@ -279,41 +264,22 @@ export async function removePlaybook(id: number): Promise<void> {
     throw new Error(error.message);
   }
 
-  revalidatePath("/playbooks");
+  revalidateApp();
 }
 
 export async function getAlertsByPlaybook(playbookId: number): Promise<Alert[]> {
   const supabase = createClient(await cookies());
   const { data, error } = await supabase
     .from("alerts")
-    .select("id, created_at, stock, email, price, operator, isActive, description, playbook_id")
-    .eq("playbook_id", playbookId);
+    .select(ALERT_COLUMNS)
+    .eq("playbook_id", playbookId)
+    .order("created_at");
 
   if (error) {
     throw new Error(error.message);
   }
 
   return data ?? [];
-}
-
-// Links or unlinks an alert to a playbook; pass null to remove it from its current playbook.
-export async function setAlertPlaybook(alertId: number, playbookId: number | null): Promise<void> {
-  const supabase = createClient(await cookies());
-  const { error } = await supabase
-    .from("alerts")
-    .update({ playbook_id: playbookId })
-    .eq("id", alertId);
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  revalidatePath("/");
-  revalidatePath("/alerts");
-  revalidatePath("/playbooks");
-  if (playbookId != null) {
-    revalidatePath(`/playbooks/${playbookId}`);
-  }
 }
 
 export type NewAlertTransition = {
@@ -374,7 +340,7 @@ export async function addAlertTransition(transition: NewAlertTransition): Promis
     throw new Error(error.message);
   }
 
-  revalidatePath(`/playbooks/${transition.playbook_id}`);
+  revalidateApp();
 
   return data;
 }
@@ -396,12 +362,12 @@ export async function updateAlertTransition(
     throw new Error(error.message);
   }
 
-  revalidatePath(`/playbooks/${transition.playbook_id}`);
+  revalidateApp();
 
   return data;
 }
 
-export async function removeAlertTransition(id: number, playbookId: number): Promise<void> {
+export async function removeAlertTransition(id: number): Promise<void> {
   const supabase = createClient(await cookies());
   const { error } = await supabase.from("alert_transitions").delete().eq("id", id);
 
@@ -409,6 +375,6 @@ export async function removeAlertTransition(id: number, playbookId: number): Pro
     throw new Error(error.message);
   }
 
-  revalidatePath(`/playbooks/${playbookId}`);
+  revalidateApp();
 }
 

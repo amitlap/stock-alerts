@@ -8,19 +8,18 @@ import SideDrawer from "@/components/SideDrawer";
 import StockChart from "@/components/StockChart";
 import type { Alert, Playbook } from "@/lib/actions";
 import { formatAlertCondition, priceChangeColor, type Candle, type StockPrice } from "@/lib/stockUtils";
+import { StepStatusChip } from "@/components/PlaybookProgress";
 
 export default function AlertPageView({
   alert,
   stock,
   candles,
   playbook,
-  playbooks = [],
 }: {
   alert: Alert;
   stock?: StockPrice;
   candles: Candle[];
-  playbook?: Playbook | null;
-  playbooks?: Playbook[];
+  playbook: Playbook;
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const isUp = (stock?.change ?? 0) >= 0;
@@ -49,24 +48,17 @@ export default function AlertPageView({
             )}
           </Stack>
         )}
+        <StepStatusChip step={alert} />
+        <Chip label={`Fires when price ${formatAlertCondition(alert)}`} variant="outlined" size="small" />
         <Chip
-          label={alert.isActive ? "Active" : "Inactive"}
-          color={alert.isActive ? "success" : "default"}
+          component={Link}
+          href={`/playbooks/${playbook.id}`}
+          clickable
+          label={`Playbook: ${playbook.name || `#${playbook.id}`}`}
+          color="primary"
+          variant="outlined"
           size="small"
         />
-        <Chip label={`Alerts when price ${formatAlertCondition(alert)}`} variant="outlined" size="small" />
-        <Chip label={alert.email} variant="outlined" size="small" />
-        {playbook && (
-          <Chip
-            component={Link}
-            href={`/playbooks/${playbook.id}`}
-            clickable
-            label={`Playbook: ${playbook.description || `#${playbook.id}`}`}
-            color="primary"
-            variant="outlined"
-            size="small"
-          />
-        )}
         <Box sx={{ flex: 1 }} />
         <Button variant="outlined" size="small" onClick={() => setEditOpen(true)}>
           Edit
@@ -86,8 +78,8 @@ export default function AlertPageView({
         />
       </Paper>
 
-      <SideDrawer open={editOpen} title={`Edit Alert · ${alert.stock}`} onClose={() => setEditOpen(false)}>
-        <AlertDetailForm alert={alert} playbooks={playbooks} onClose={() => setEditOpen(false)} />
+      <SideDrawer open={editOpen} title={`Edit step · ${alert.stock}`} onClose={() => setEditOpen(false)}>
+        <AlertDetailForm alert={alert} onClose={() => setEditOpen(false)} />
       </SideDrawer>
     </>
   );

@@ -6,24 +6,24 @@ import { Box, Button, Chip, MenuItem, Paper, Stack, TextField, Typography } from
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import {
   addAlertTransition,
+  removeAlert,
   removeAlertTransition,
   removePlaybook,
-  setAlertPlaybook,
   updateAlertTransition,
   updatePlaybook,
+  type Alert,
   type AlertTransition,
   type Playbook,
 } from "@/lib/actions";
 import { useAsyncAction, usePendingId } from "@/lib/hooks";
-import { formatAlertLabel, getErrorMessage, type AlertRow } from "@/lib/stockUtils";
+import { formatAlertLabel, getErrorMessage, getStepStatus, STEP_STATUS_LABELS } from "@/lib/stockUtils";
 import AddAlertForm from "./AddAlertForm";
 import AlertRelationshipGraph from "./AlertRelationshipGraph";
 import FormDialog from "./FormDialog";
+import PlaybookProgress, { STEP_STATUS_COLORS } from "./PlaybookProgress";
 import RowActionButton from "./RowActionButton";
 
-type PlaybookAlert = AlertRow & { created_at: string };
-
-function alertMenuItems(alerts: PlaybookAlert[]) {
+function alertMenuItems(alerts: Alert[]) {
   return alerts.map((alert) => (
     <MenuItem key={alert.id} value={String(alert.id)}>
       {formatAlertLabel(alert)}
@@ -34,12 +34,10 @@ function alertMenuItems(alerts: PlaybookAlert[]) {
 export default function PlaybookDetailView({
   playbook,
   linkedAlerts,
-  availableAlerts,
   transitions,
 }: {
   playbook: Playbook;
-  linkedAlerts: PlaybookAlert[];
-  availableAlerts: PlaybookAlert[];
+  linkedAlerts: Alert[];
   transitions: AlertTransition[];
 }) {
   const router = useRouter();
@@ -47,8 +45,6 @@ export default function PlaybookDetailView({
   const [name, setName] = useState(playbook.name ?? "");
   const [description, setDescription] = useState(playbook.description ?? "");
   const [deleting, setDeleting] = useState(false);
-  const [linking, setLinking] = useState(false);
-  const [selectedAlertId, setSelectedAlertId] = useState("");
   const [sourceAlertId, setSourceAlertId] = useState("");
   const [targetAlertId, setTargetAlertId] = useState("");
   const [condition, setCondition] = useState("");
@@ -56,7 +52,7 @@ export default function PlaybookDetailView({
   const savePlaybook = useAsyncAction();
   // Also holds errors from inline grid edits, so both show in the same place.
   const addTransition = useAsyncAction();
-  const unlinking = usePendingId();
+  const removingStep = usePendingId();
   const removingTransition = usePendingId();
 
   async function handleSaveDescription() {
@@ -74,6 +70,7 @@ export default function PlaybookDetailView({
   }
 
   async function handleDeletePlaybook() {
+    if (!window.confirm(`Delete "${playbook.name}" and all its steps?`)) return;
     setDeleting(true);
     try {
       await removePlaybook(playbook.id);
@@ -83,21 +80,10 @@ export default function PlaybookDetailView({
     }
   }
 
-  async function handleAddAlert() {
-    if (!selectedAlertId) return;
-    setLinking(true);
-    try {
-      await setAlertPlaybook(Number(selectedAlertId), playbook.id);
-      setSelectedAlertId("");
-      router.refresh();
-    } finally {
-      setLinking(false);
-    }
-  }
-
-  function handleRemoveAlert(alertId: number) {
-    return unlinking.run(alertId, async () => {
-      await setAlertPlaybook(alertId, null);
+  function handleRemoveStep(step: Alert) {
+    if (!window.confirm(`Delete step "${formatAlertLabel(step)}"? Its transitions are deleted too.`)) return;
+    return removingStep.run(step.id, async () => {
+      await removeAlert(step.id);
       router.refresh();
     });
   }
@@ -124,7 +110,7 @@ export default function PlaybookDetailView({
 
   function handleRemoveTransition(transitionId: number) {
     return removingTransition.run(transitionId, async () => {
-      await removeAlertTransition(transitionId, playbook.id);
+      await removeAlertTransition(transitionId);
       router.refresh();
     });
   }
@@ -201,9 +187,14 @@ export default function PlaybookDetailView({
             <Typography variant="body2" color="text.secondary">
               created {new Date(playbook.created_at).toLocaleString()} · {playbook.email}
             </Typography>
-            <Typography variant="body1" sx={{ mt: 1.5, whiteSpace: "pre-wrap" }}>
-              {playbook.description || "No description yet."}
-            </Typography>
+            {playbook.description && (
+              <Typography variant="body1" sx={{ mt: 1.5, whiteSpace: "pre-wrap" }}>
+                {playbook.description}
+              </Typography>
+            )}
+            <Box sx={{ mt: 2, maxWidth: 360 }}>
+              <PlaybookProgress steps={linkedAlerts} />
+            </Box>
           </Box>
           <Stack direction="row" spacing={1} sx={{ flexShrink: 0 }}>
             <Button size="small" variant="outlined" onClick={() => setEditOpen(true)}>
@@ -222,52 +213,38 @@ export default function PlaybookDetailView({
             direction="row"
             sx={{ alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 1, mb: 2 }}
           >
-            <Typography variant="h6">Alerts ({linkedAlerts.length})</Typography>
-            <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-              {availableAlerts.length > 0 && (
-                <>
-                  <TextField
-                    select
-                    size="small"
-                    label="Add existing alert"
-                    value={selectedAlertId}
-                    onChange={(e) => setSelectedAlertId(e.target.value)}
-                    sx={{ minWidth: 200 }}
-                  >
-                    {alertMenuItems(availableAlerts)}
-                  </TextField>
-                  <Button
-                    variant="contained"
-                    size="small"
-                    onClick={handleAddAlert}
-                    disabled={!selectedAlertId || linking}
-                  >
-                    Add
-                  </Button>
-                </>
-              )}
-              <AddAlertForm
-                buttonLabel="Create Alert"
-                defaultEmail={playbook.email}
-                playbookId={playbook.id}
-                onCreated={() => router.refresh()}
-              />
-            </Stack>
+            <Typography variant="h6">Steps ({linkedAlerts.length})</Typography>
+            <AddAlertForm
+              playbookId={playbook.id}
+              email={playbook.email}
+              defaultActive={linkedAlerts.length === 0}
+              onCreated={() => router.refresh()}
+            />
           </Stack>
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5 }}>
+            Watching steps can fire now. Waiting steps start when a transition turns them on. Click a step to see its chart.
+          </Typography>
           {linkedAlerts.length === 0 ? (
-            <Typography color="text.secondary">No alerts linked yet.</Typography>
+            <Typography color="text.secondary">No steps yet.</Typography>
           ) : (
             <Stack direction="row" sx={{ flexWrap: "wrap", gap: 1 }}>
-              {linkedAlerts.map((alert) => (
-                <Chip
-                  key={alert.id}
-                  label={formatAlertLabel(alert)}
-                  color={alert.isActive ? "primary" : "default"}
-                  variant="outlined"
-                  onClick={() => router.push(`/alerts/${alert.id}`)}
-                  onDelete={unlinking.pendingId === alert.id ? undefined : () => handleRemoveAlert(alert.id)}
-                />
-              ))}
+              {linkedAlerts.map((alert) => {
+                const status = getStepStatus(alert);
+                return (
+                  <Chip
+                    key={alert.id}
+                    label={`${formatAlertLabel(alert)} · ${STEP_STATUS_LABELS[status]}`}
+                    color={STEP_STATUS_COLORS[status]}
+                    variant={status === "waiting" ? "outlined" : "filled"}
+                    onClick={() => router.push(`/playbooks/${playbook.id}/steps/${alert.id}`)}
+                    onDelete={
+                      linkedAlerts.length === 1 || removingStep.pendingId === alert.id
+                        ? undefined
+                        : () => handleRemoveStep(alert)
+                    }
+                  />
+                );
+              })}
             </Stack>
           )}
         </Paper>
@@ -275,12 +252,12 @@ export default function PlaybookDetailView({
         <Paper component="section" elevation={1} sx={{ p: 2.5 }}>
           <Typography variant="h6">Transitions</Typography>
           <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 2 }}>
-            When the &quot;From&quot; alert fires, the &quot;To&quot; alert is activated. Double-click a cell to edit.
+            When the &quot;From&quot; step fires, the &quot;To&quot; step starts watching. Double-click a cell to edit.
           </Typography>
 
           {linkedAlerts.length < 2 ? (
             <Typography color="text.secondary" sx={{ mb: 2 }}>
-              Add at least two alerts to create a transition.
+              Add at least two steps to create a transition.
             </Typography>
           ) : (
             <Stack spacing={1.5} sx={{ mb: 2 }}>
@@ -288,7 +265,7 @@ export default function PlaybookDetailView({
                 <TextField
                   select
                   size="small"
-                  label="From alert"
+                  label="From step"
                   value={sourceAlertId}
                   onChange={(e) => setSourceAlertId(e.target.value)}
                   sx={{ flex: 1, minWidth: 160 }}
@@ -298,7 +275,7 @@ export default function PlaybookDetailView({
                 <TextField
                   select
                   size="small"
-                  label="To alert"
+                  label="To step"
                   value={targetAlertId}
                   onChange={(e) => setTargetAlertId(e.target.value)}
                   sx={{ flex: 1, minWidth: 160 }}

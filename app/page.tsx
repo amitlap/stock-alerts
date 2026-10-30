@@ -5,11 +5,10 @@ import StockHeader from "@/components/StockHeader";
 import TradingViewWidget from "@/components/TradingViewWidget";
 import TradingViewSymbolInfo from "@/components/TradingViewSymbolInfo";
 import MarketValuationTable from "@/components/MarketValuationTable";
-import AllAlertsTable from "@/components/AllAlertsTable";
 import PlaybooksList from "@/components/PlaybooksList";
 import ButtonLink from "@/components/ButtonLink";
-import { getLatestStockPrices } from "@/lib/actions";
-import { getMatchingAlerts } from "@/lib/stockUtils";
+import { getLatestStockPrices, getPlaybooksWithSteps } from "@/lib/actions";
+import { getErrorMessage, getMatchingAlerts, getPlaybookProgress } from "@/lib/stockUtils";
 import { getMarketValuation } from "@/lib/marketValuation";
 
 export default async function Home() {
@@ -20,28 +19,25 @@ export default async function Home() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Only show alerts belonging to the signed-in user.
-  const { data: alerts, error: alertsError } = user?.email
-    ? await supabase
-        .from("alerts")
-        .select("id, created_at, stock, email, price, operator, isActive, description, playbook_id")
-        .eq("email", user.email)
-    : { data: [], error: null };
+  // The signed-in user's playbooks, each with its steps.
+  let playbooks: Awaited<ReturnType<typeof getPlaybooksWithSteps>> = [];
+  let playbooksError: string | null = null;
+  if (user?.email) {
+    try {
+      playbooks = await getPlaybooksWithSteps(user.email);
+    } catch (error) {
+      playbooksError = getErrorMessage(error);
+    }
+  }
 
-  // Playbooks belonging to the signed-in user.
-  const { data: playbooks, error: playbooksError } = user?.email
-    ? await supabase
-        .from("playbooks")
-        .select("id, created_at, name, description, email")
-        .eq("email", user.email)
-        .order("created_at", { ascending: false })
-    : { data: [], error: null };
+  const steps = playbooks.flatMap((playbook) => playbook.alerts);
+  const progress = getPlaybookProgress(steps);
+  const runningCount = playbooks.filter((playbook) => getPlaybookProgress(playbook.alerts).watching > 0).length;
 
-  // Show stocks the user has alerts for, so each user sees their own list.
-  const tickers = [...new Set((alerts ?? []).map((alert) => alert.stock))];
+  // Show stocks the user's playbooks follow, so each user sees their own list.
+  const tickers = [...new Set(steps.map((step) => step.stock))];
   const stocks = tickers.length > 0 ? await getLatestStockPrices(tickers) : [];
-  const matchingCount = getMatchingAlerts(alerts ?? [], stocks).length;
-  const activeCount = (alerts ?? []).filter((alert) => alert.isActive !== false).length;
+  const matchingCount = getMatchingAlerts(steps, stocks).length;
 
   let marketValuation = null;
   let marketValuationError: string | undefined;
@@ -61,11 +57,11 @@ export default async function Home() {
         <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
           <Paper sx={{ p: 2, flex: 1 }}>
             <Typography variant="overline" color="text.secondary">
-              Alerts
+              Playbooks
             </Typography>
-            <Typography variant="h4">{alerts?.length ?? 0}</Typography>
+            <Typography variant="h4">{playbooks.length}</Typography>
             <Typography variant="body2" color="text.secondary">
-              {activeCount} active
+              {runningCount} running
             </Typography>
           </Paper>
           <Paper sx={{ p: 2, flex: 1 }}>
@@ -76,16 +72,18 @@ export default async function Home() {
               {matchingCount}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              alerts matching current price
+              watching steps at their price now
             </Typography>
           </Paper>
           <Paper sx={{ p: 2, flex: 1 }}>
             <Typography variant="overline" color="text.secondary">
-              Playbooks
+              Steps done
             </Typography>
-            <Typography variant="h4">{playbooks?.length ?? 0}</Typography>
+            <Typography variant="h4">
+              {progress.done}/{progress.total}
+            </Typography>
             <Typography variant="body2" color="text.secondary">
-              saved strategies
+              {progress.watching} watching · {progress.waiting} waiting
             </Typography>
           </Paper>
         </Stack>
@@ -110,43 +108,23 @@ export default async function Home() {
           <TradingViewSymbolInfo symbol="SP:SPX" />
         </Paper>
 
-        <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-          <Paper component="section" elevation={1} sx={{ p: 3, flex: 1 }}>
-            <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", mb: 2 }}>
-              <Typography variant="h6" component="h2">
-                My Alerts
-              </Typography>
-              <ButtonLink href="/alerts" size="small">
-                Manage alerts
-              </ButtonLink>
-            </Stack>
-            {alertsError ? (
-              <Typography color="error">Failed to load alerts: {alertsError.message}</Typography>
-            ) : (alerts ?? []).length === 0 ? (
-              <Typography color="text.secondary">No alerts yet.</Typography>
-            ) : (
-              <AllAlertsTable alerts={(alerts ?? []).slice(0, 5)} />
-            )}
-          </Paper>
-
-          <Paper component="section" elevation={1} sx={{ p: 3, flex: 1 }}>
-            <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", mb: 2 }}>
-              <Typography variant="h6" component="h2">
-                My Playbooks
-              </Typography>
-              <ButtonLink href="/playbooks" size="small">
-                Manage playbooks
-              </ButtonLink>
-            </Stack>
-            {playbooksError ? (
-              <Typography color="error">Failed to load playbooks: {playbooksError.message}</Typography>
-            ) : (playbooks ?? []).length === 0 ? (
-              <Typography color="text.secondary">No playbooks yet.</Typography>
-            ) : (
-              <PlaybooksList playbooks={(playbooks ?? []).slice(0, 5)} />
-            )}
-          </Paper>
-        </Stack>
+        <Paper component="section" elevation={1} sx={{ p: 3 }}>
+          <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", mb: 2 }}>
+            <Typography variant="h6" component="h2">
+              My Playbooks
+            </Typography>
+            <ButtonLink href="/playbooks" size="small">
+              Manage playbooks
+            </ButtonLink>
+          </Stack>
+          {playbooksError ? (
+            <Typography color="error">Failed to load playbooks: {playbooksError}</Typography>
+          ) : playbooks.length === 0 ? (
+            <Typography color="text.secondary">No playbooks yet.</Typography>
+          ) : (
+            <PlaybooksList playbooks={playbooks.slice(0, 5)} />
+          )}
+        </Paper>
       </main>
     </div>
   );

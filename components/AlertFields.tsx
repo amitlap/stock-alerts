@@ -1,7 +1,11 @@
 "use client";
 
-import { FormControlLabel, MenuItem, Switch, TextField } from "@mui/material";
+import { FormControlLabel, MenuItem, Stack, Switch, TextField } from "@mui/material";
 import { ALERT_OPERATORS, type AlertOperator } from "@/lib/stockUtils";
+
+export type ConditionDraft = { stock: string; operator: AlertOperator; price: string };
+
+export const EMPTY_CONDITION: ConditionDraft = { stock: "", operator: ">", price: "" };
 
 export function OperatorField({
   value,
@@ -38,6 +42,29 @@ export function PriceField({ value, onChange }: { value: string; onChange: (pric
       value={value}
       onChange={(e) => onChange(e.target.value)}
     />
+  );
+}
+
+// Stock, operator and price on one row: "AAPL  >  200".
+export function ConditionFields({
+  value,
+  onChange,
+}: {
+  value: ConditionDraft;
+  onChange: (value: ConditionDraft) => void;
+}) {
+  return (
+    <Stack direction="row" spacing={1.5}>
+      <TextField
+        label="Stock"
+        size="small"
+        fullWidth
+        value={value.stock}
+        onChange={(e) => onChange({ ...value, stock: e.target.value })}
+      />
+      <OperatorField value={value.operator} onChange={(operator) => onChange({ ...value, operator })} />
+      <PriceField value={value.price} onChange={(price) => onChange({ ...value, price })} />
+    </Stack>
   );
 }
 

@@ -2,23 +2,45 @@
 
 import { useRouter } from "next/navigation";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
-import { removePlaybook, type Playbook } from "@/lib/actions";
+import { removePlaybook, type PlaybookWithSteps } from "@/lib/actions";
 import { usePendingId } from "@/lib/hooks";
-import { clickableRowsSx } from "./alertGrid";
+import { formatAlertLabel, getStepStatus } from "@/lib/stockUtils";
+import PlaybookProgress from "./PlaybookProgress";
 import RowActionButton from "./RowActionButton";
 
-export default function PlaybooksList({ playbooks }: { playbooks: Playbook[] }) {
+export default function PlaybooksList({ playbooks }: { playbooks: PlaybookWithSteps[] }) {
   const router = useRouter();
   const deleting = usePendingId();
 
-  const columns: GridColDef<Playbook>[] = [
-    { field: "name", headerName: "Name", flex: 1 },
-    { field: "description", headerName: "Description", flex: 2 },
+  function handleDelete(playbook: PlaybookWithSteps) {
+    if (!window.confirm(`Delete "${playbook.name}" and all its steps?`)) return;
+    deleting.run(playbook.id, () => removePlaybook(playbook.id));
+  }
+
+  const columns: GridColDef<PlaybookWithSteps>[] = [
+    { field: "name", headerName: "Name", flex: 1.2 },
+    {
+      field: "progress",
+      headerName: "Progress",
+      flex: 1,
+      sortable: false,
+      renderCell: ({ row }) => <PlaybookProgress steps={row.alerts} compact />,
+    },
+    {
+      field: "watching",
+      headerName: "Watching",
+      flex: 1.2,
+      valueGetter: (_value, row) =>
+        row.alerts
+          .filter((step) => getStepStatus(step) === "watching")
+          .map(formatAlertLabel)
+          .join(", ") || "—",
+    },
     {
       field: "created_at",
       headerName: "Created",
-      flex: 1,
-      valueGetter: (_value, row) => new Date(row.created_at).toLocaleString(),
+      flex: 0.8,
+      valueGetter: (_value, row) => new Date(row.created_at).toLocaleDateString(),
     },
     {
       field: "actions",
@@ -26,11 +48,11 @@ export default function PlaybooksList({ playbooks }: { playbooks: Playbook[] }) 
       sortable: false,
       filterable: false,
       align: "right",
-      flex: 1,
+      flex: 0.6,
       renderCell: ({ row }) => (
         <RowActionButton
           color="error"
-          onClick={() => deleting.run(row.id, () => removePlaybook(row.id))}
+          onClick={() => handleDelete(row)}
           pending={deleting.pendingId === row.id}
           pendingLabel="Deleting..."
         >
@@ -45,10 +67,13 @@ export default function PlaybooksList({ playbooks }: { playbooks: Playbook[] }) 
       autoHeight
       rows={playbooks}
       columns={columns}
-      density="compact"
+      rowHeight={60}
       disableRowSelectionOnClick
       onRowClick={(params) => router.push(`/playbooks/${params.row.id}`)}
-      sx={clickableRowsSx}
+      sx={{
+        "& .MuiDataGrid-row": { cursor: "pointer" },
+        "& .MuiDataGrid-cell": { display: "flex", alignItems: "center" },
+      }}
     />
   );
 }

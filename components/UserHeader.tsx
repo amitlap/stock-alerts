@@ -32,9 +32,6 @@ export default function UserHeader({ userEmail }: { userEmail: string | null }) 
           <Link href="/" className="text-sm hover:underline">
             Dashboard
           </Link>
-          <Link href="/alerts" className="text-sm hover:underline">
-            Alerts
-          </Link>
           <Link href="/playbooks" className="text-sm hover:underline">
             Playbooks
           </Link>

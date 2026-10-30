@@ -1,7 +1,5 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { cookies } from "next/headers";
-import { createClient } from "@/utils/supabase/server";
 import { getAlertsByPlaybook, getPlaybookById, getTransitionsByPlaybook } from "@/lib/actions";
 import PlaybookDetailView from "@/components/PlaybookDetailView";
 
@@ -17,15 +15,9 @@ export default async function PlaybookPage({
     notFound();
   }
 
-  const supabase = createClient(await cookies());
-  const [linkedAlerts, transitions, { data: availableAlerts }] = await Promise.all([
+  const [steps, transitions] = await Promise.all([
     getAlertsByPlaybook(playbook.id),
     getTransitionsByPlaybook(playbook.id),
-    supabase
-      .from("alerts")
-      .select("id, created_at, stock, email, price, operator, isActive")
-      .eq("email", playbook.email)
-      .is("playbook_id", null),
   ]);
 
   return (
@@ -34,12 +26,7 @@ export default async function PlaybookPage({
         <Link href="/playbooks" className="text-sm text-zinc-500 hover:underline">
           ← Back to playbooks
         </Link>
-        <PlaybookDetailView
-          playbook={playbook}
-          linkedAlerts={linkedAlerts}
-          availableAlerts={availableAlerts ?? []}
-          transitions={transitions}
-        />
+        <PlaybookDetailView playbook={playbook} linkedAlerts={steps} transitions={transitions} />
       </main>
     </div>
   );

@@ -20,7 +20,13 @@ import {
   type Node,
   type NodeProps,
 } from "@xyflow/react";
-import { formatAlertCondition, formatAlertLabel } from "@/lib/stockUtils";
+import {
+  formatAlertCondition,
+  formatAlertLabel,
+  getStepStatus,
+  STEP_STATUS_LABELS,
+  type StepStatus,
+} from "@/lib/stockUtils";
 
 import "@xyflow/react/dist/style.css";
 
@@ -31,6 +37,7 @@ export type RelatedAlert = {
   price?: number | null;
   operator?: string | null;
   isActive?: boolean | null;
+  triggered_at?: string | null;
   created_at: string;
 };
 
@@ -47,8 +54,14 @@ type AlertNodeData = {
   label: string;
   stock: string;
   condition: string;
-  isActive: boolean;
+  status: StepStatus;
   createdAt: string;
+};
+
+const STATUS_DOT_CLASSES: Record<StepStatus, string> = {
+  waiting: "bg-zinc-400",
+  watching: "bg-blue-500",
+  done: "bg-emerald-500",
 };
 
 type AlertNode = Node<AlertNodeData, "alert">;
@@ -74,7 +87,7 @@ function buildGraph(
       label: formatAlertLabel(alert),
       stock: alert.stock,
       condition: formatAlertCondition(alert),
-      isActive: alert.isActive !== false,
+      status: getStepStatus(alert),
       createdAt: alert.created_at,
     },
   }));
@@ -126,12 +139,10 @@ function AlertCardNode({ id, data }: NodeProps<AlertNode>) {
       <Handle type="target" position={Position.Top} />
 
       <div className="flex items-center justify-between gap-2">
-        <span
-          className={`h-2 w-2 shrink-0 rounded-full ${
-            data.isActive ? "bg-emerald-500" : "bg-zinc-400"
-          }`}
-          title={data.isActive ? "Active" : "Inactive"}
-        />
+        <span className="flex items-center gap-1 text-[11px] text-zinc-600">
+          <span className={`h-2 w-2 shrink-0 rounded-full ${STATUS_DOT_CLASSES[data.status]}`} />
+          {STEP_STATUS_LABELS[data.status]}
+        </span>
         <span className="truncate text-[11px] text-zinc-500">
           {new Date(data.createdAt).toLocaleDateString()}
         </span>
@@ -257,7 +268,7 @@ function AlertRelationshipGraphInner({
     <>
       <div className="mb-2 flex items-center justify-between gap-2">
         <p className="text-xs text-zinc-500">
-          Drag between handles to relate alerts. Double-click a node to rename it.
+          Drag between handles to relate steps. Double-click a node to rename it.
         </p>
         <button
           type="button"
@@ -271,7 +282,7 @@ function AlertRelationshipGraphInner({
       <div className="h-[560px] overflow-hidden rounded-lg border">
         {nodes.length === 0 ? (
           <div className="flex h-full items-center justify-center px-4 text-center text-sm text-zinc-500">
-            Link alerts to this playbook to see their relationships.
+            Add steps to this playbook to see how they connect.
           </div>
         ) : (
           <ReactFlow
@@ -307,12 +318,12 @@ export default function AlertRelationshipGraph({
   return (
     <Paper component="section" elevation={1} sx={{ p: 2, position: { lg: "sticky" }, top: { lg: 16 } }}>
       <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 600 }}>
-        Alert relationships
+        Step flow
       </Typography>
       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5 }}>
         {transitions.length > 0
-          ? "Edges reflect recorded alert transitions. Drag to rearrange or connect alerts manually."
-          : "Alerts are chained in creation order. Drag to rearrange or connect alerts manually."}
+          ? "Edges reflect the playbook's transitions. Drag to rearrange or connect steps manually."
+          : "Steps are chained in creation order. Drag to rearrange or connect steps manually."}
       </Typography>
 
       <ReactFlowProvider>
