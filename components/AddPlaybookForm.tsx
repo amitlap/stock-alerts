@@ -1,44 +1,23 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Button, TextField, Typography } from "@mui/material";
-import { addPlaybook } from "@/lib/actions";
-import { useAsyncAction } from "@/lib/hooks";
-import { parsePrice } from "@/lib/stockUtils";
-import { ConditionFields, EMPTY_CONDITION } from "./AlertFields";
+import { ConditionFields } from "./AlertFields";
 import FormDialog from "./FormDialog";
+import { useNewPlaybook } from "./useNewPlaybook";
 
-// Creates a playbook with its first step, then opens it.
+// Dialog for creating a playbook with its first step, then opening it.
 export default function AddPlaybookForm({ userEmail }: { userEmail: string }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [firstStep, setFirstStep] = useState(EMPTY_CONDITION);
-  const save = useAsyncAction();
-
-  const price = parsePrice(firstStep.price);
-  const canSave = name.trim() !== "" && firstStep.stock.trim() !== "" && price !== null;
+  const draft = useNewPlaybook(userEmail);
 
   function handleOpen() {
-    setName("");
-    setDescription("");
-    setFirstStep(EMPTY_CONDITION);
-    save.setError(null);
+    draft.reset();
     setOpen(true);
   }
 
   async function handleSave() {
-    if (price === null) return;
-    await save.run(async () => {
-      const playbook = await addPlaybook(
-        { name, description, email: userEmail },
-        { stock: firstStep.stock, operator: firstStep.operator, price },
-      );
-      setOpen(false);
-      router.push(`/playbooks/${playbook.id}`);
-    });
+    if (await draft.create()) setOpen(false);
   }
 
   return (
@@ -51,23 +30,29 @@ export default function AddPlaybookForm({ userEmail }: { userEmail: string }) {
         title="New Playbook"
         onClose={() => setOpen(false)}
         onSave={handleSave}
-        saving={save.pending}
-        canSave={canSave}
-        error={save.error}
+        saving={draft.save.pending}
+        canSave={draft.canSave}
+        error={draft.save.error}
         maxWidth="sm"
       >
-        <TextField label="Name" size="small" fullWidth value={name} onChange={(e) => setName(e.target.value)} />
+        <TextField
+          label="Name"
+          size="small"
+          fullWidth
+          value={draft.name}
+          onChange={(e) => draft.setName(e.target.value)}
+        />
         <TextField
           label="Description (optional)"
           size="small"
           fullWidth
           multiline
           minRows={2}
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          value={draft.description}
+          onChange={(e) => draft.setDescription(e.target.value)}
         />
         <Typography variant="subtitle2">First step — start watching when</Typography>
-        <ConditionFields value={firstStep} onChange={setFirstStep} />
+        <ConditionFields value={draft.firstStep} onChange={draft.setFirstStep} />
       </FormDialog>
     </>
   );

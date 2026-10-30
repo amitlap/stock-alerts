@@ -68,6 +68,21 @@ export type Alert = NewAlert & {
 const ALERT_COLUMNS =
   "id, created_at, stock, email, price, operator, isActive, description, playbook_id, triggered_at";
 
+// Row-level security makes a disallowed delete match 0 rows instead of failing, so a delete
+// selects what it removed and this turns "nothing removed" into an error.
+function assertDeleted(
+  { data, error }: { data: unknown[] | null; error: { message: string } | null },
+  what: string,
+  table: string,
+) {
+  if (error) {
+    throw new Error(error.message);
+  }
+  if (!data || data.length === 0) {
+    throw new Error(`The ${what} wasn't deleted — the ${table} table needs a delete policy in Supabase.`);
+  }
+}
+
 // Playbooks, their steps and the dashboard all show the same data, so refresh every page.
 function revalidateApp() {
   revalidatePath("/", "layout");
@@ -95,7 +110,59 @@ function toAlertFields(alert: Omit<NewAlert, "playbook_id">) {
   };
 }
 
-export async function addAlert(alert: NewAlert): Promise<Alert> {
+// The existing step a step follows: when `sourceAlertId` fires, the step starts watching.
+export type StepSource = { sourceAlertId: number; explanation?: string | null };
+
+type SupabaseClient = ReturnType<typeof createClient>;
+
+// Makes `after` the only step that `stepId` starts after, keeping that link's other fields if it
+// already exists; null means the step starts on its own.
+async function setStepSource(
+  supabase: SupabaseClient,
+  playbookId: number,
+  stepId: number,
+  after: StepSource | null,
+) {
+  if (after) {
+    const { data: source, error } = await supabase
+      .from("alerts")
+      .select("id")
+      .eq("id", after.sourceAlertId)
+      .eq("playbook_id", playbookId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!source) throw new Error("The step it starts after isn't in this playbook");
+  }
+
+  let stale = supabase.from("alert_transitions").delete().eq("target_alert_id", stepId);
+  if (after) stale = stale.neq("source_alert_id", after.sourceAlertId);
+  const { error: staleError } = await stale;
+  if (staleError) throw new Error(staleError.message);
+
+  if (!after) return;
+
+  const row = toTransitionRow({
+    playbook_id: playbookId,
+    source_alert_id: after.sourceAlertId,
+    target_alert_id: stepId,
+    explanation: after.explanation,
+  });
+  const { data: existing, error: existingError } = await supabase
+    .from("alert_transitions")
+    .select("id")
+    .eq("source_alert_id", after.sourceAlertId)
+    .eq("target_alert_id", stepId)
+    .maybeSingle();
+  if (existingError) throw new Error(existingError.message);
+
+  const { error } = existing
+    ? await supabase.from("alert_transitions").update({ explanation: row.explanation }).eq("id", existing.id)
+    : await supabase.from("alert_transitions").insert(row);
+  if (error) throw new Error(error.message);
+}
+
+// Adds a step to a playbook, optionally starting after an existing step of the same playbook.
+export async function addAlert(alert: NewAlert, after?: StepSource | null): Promise<Alert> {
   const supabase = createClient(await cookies());
   const { data, error } = await supabase
     .from("alerts")
@@ -107,13 +174,24 @@ export async function addAlert(alert: NewAlert): Promise<Alert> {
     throw new Error(error.message);
   }
 
+  if (after) {
+    try {
+      await setStepSource(supabase, alert.playbook_id, data.id, after);
+    } catch (err) {
+      // Don't leave a step behind that was meant to follow another one but doesn't.
+      await supabase.from("alerts").delete().eq("id", data.id);
+      throw err;
+    }
+  }
+
   revalidateApp();
 
   return data;
 }
 
-// Updates a step's editable fields; a step stays in the playbook it was created in.
-export async function updateAlert(id: number, alert: NewAlert): Promise<Alert> {
+// Updates a step's fields and, unless `after` is undefined, which step it starts after.
+// A step stays in the playbook it was created in.
+export async function updateAlert(id: number, alert: NewAlert, after?: StepSource | null): Promise<Alert> {
   const supabase = createClient(await cookies());
   const { data, error } = await supabase
     .from("alerts")
@@ -124,6 +202,10 @@ export async function updateAlert(id: number, alert: NewAlert): Promise<Alert> {
 
   if (error) {
     throw new Error(error.message);
+  }
+
+  if (after !== undefined) {
+    await setStepSource(supabase, data.playbook_id, id, after);
   }
 
   revalidateApp();
@@ -142,14 +224,27 @@ export async function getAlertById(id: number): Promise<Alert | null> {
   return data;
 }
 
+// Deletes a step along with the transitions into and out of it.
 export async function removeAlert(id: number): Promise<void> {
   const supabase = createClient(await cookies());
-  const { error } = await supabase.from("alerts").delete().eq("id", id);
+  const deleteStep = () => supabase.from("alerts").delete().eq("id", id).select("id");
 
-  if (error) {
-    throw new Error(error.message);
+  let result = await deleteStep();
+
+  // 23503: transitions still point at the step because their foreign keys don't cascade.
+  // Remove them and retry; the step is deleted first so a blocked delete leaves everything as it was.
+  if (result.error?.code === "23503") {
+    const { error } = await supabase
+      .from("alert_transitions")
+      .delete()
+      .or(`source_alert_id.eq.${id},target_alert_id.eq.${id}`);
+    if (error) {
+      throw new Error(error.message);
+    }
+    result = await deleteStep();
   }
 
+  assertDeleted(result, "step", "alerts");
   revalidateApp();
 }
 
@@ -258,12 +353,7 @@ export async function getPlaybooksWithSteps(email: string): Promise<PlaybookWith
 // Deleting a playbook also deletes its steps and transitions (on delete cascade).
 export async function removePlaybook(id: number): Promise<void> {
   const supabase = createClient(await cookies());
-  const { error } = await supabase.from("playbooks").delete().eq("id", id);
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
+  assertDeleted(await supabase.from("playbooks").delete().eq("id", id).select("id"), "playbook", "playbooks");
   revalidateApp();
 }
 
@@ -312,10 +402,10 @@ export async function getTransitionsByPlaybook(playbookId: number): Promise<Aler
 // Validates a transition and normalizes it into the row shape written to alert_transitions.
 function toTransitionRow(transition: NewAlertTransition) {
   if (!transition.source_alert_id || !transition.target_alert_id) {
-    throw new Error("Source and target alerts are required");
+    throw new Error("Both steps of a transition are required");
   }
   if (transition.source_alert_id === transition.target_alert_id) {
-    throw new Error("Source and target alerts must be different");
+    throw new Error("A step can't start after itself");
   }
 
   return {
@@ -326,55 +416,3 @@ function toTransitionRow(transition: NewAlertTransition) {
     explanation: transition.explanation?.trim() || null,
   };
 }
-
-export async function addAlertTransition(transition: NewAlertTransition): Promise<AlertTransition> {
-  const row = toTransitionRow(transition);
-  const supabase = createClient(await cookies());
-  const { data, error } = await supabase
-    .from("alert_transitions")
-    .insert(row)
-    .select()
-    .single();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  revalidateApp();
-
-  return data;
-}
-
-export async function updateAlertTransition(
-  id: number,
-  transition: NewAlertTransition
-): Promise<AlertTransition> {
-  const row = toTransitionRow(transition);
-  const supabase = createClient(await cookies());
-  const { data, error } = await supabase
-    .from("alert_transitions")
-    .update(row)
-    .eq("id", id)
-    .select()
-    .single();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  revalidateApp();
-
-  return data;
-}
-
-export async function removeAlertTransition(id: number): Promise<void> {
-  const supabase = createClient(await cookies());
-  const { error } = await supabase.from("alert_transitions").delete().eq("id", id);
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  revalidateApp();
-}
-

@@ -1,6 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getAlertById, getHistoricalPrices, getLatestStockPrices, getPlaybookById } from "@/lib/actions";
+import {
+  getAlertsByPlaybook,
+  getHistoricalPrices,
+  getLatestStockPrices,
+  getPlaybookById,
+  getTransitionsByPlaybook,
+} from "@/lib/actions";
 import AlertPageView from "@/components/AlertPageView";
 
 export default async function StepPage({
@@ -9,9 +15,17 @@ export default async function StepPage({
   params: Promise<{ id: string; stepId: string }>;
 }) {
   const { id, stepId } = await params;
-  const [playbook, step] = await Promise.all([getPlaybookById(Number(id)), getAlertById(Number(stepId))]);
+  const playbook = await getPlaybookById(Number(id));
+  if (!playbook) {
+    notFound();
+  }
 
-  if (!playbook || !step || step.playbook_id !== playbook.id) {
+  const [steps, transitions] = await Promise.all([
+    getAlertsByPlaybook(playbook.id),
+    getTransitionsByPlaybook(playbook.id),
+  ]);
+  const step = steps.find((s) => s.id === Number(stepId));
+  if (!step) {
     notFound();
   }
 
@@ -26,7 +40,14 @@ export default async function StepPage({
         <Link href={`/playbooks/${playbook.id}`} className="text-sm text-zinc-500 hover:underline">
           ← Back to {playbook.name || "playbook"}
         </Link>
-        <AlertPageView alert={step} stock={stock} candles={candles} playbook={playbook} />
+        <AlertPageView
+          alert={step}
+          stock={stock}
+          candles={candles}
+          playbook={playbook}
+          steps={steps}
+          transitions={transitions}
+        />
       </main>
     </div>
   );

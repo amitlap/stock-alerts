@@ -1,11 +1,20 @@
 "use client";
 
 import { FormControlLabel, MenuItem, Stack, Switch, TextField } from "@mui/material";
-import { ALERT_OPERATORS, type AlertOperator } from "@/lib/stockUtils";
+import { ALERT_OPERATORS, formatAlertLabel, type Alert, type AlertOperator } from "@/lib/stockUtils";
 
 export type ConditionDraft = { stock: string; operator: AlertOperator; price: string };
 
 export const EMPTY_CONDITION: ConditionDraft = { stock: "", operator: ">", price: "" };
+
+// Options for picking a playbook step in a select; values are string ids to match the form state.
+export function stepMenuItems(steps: (Pick<Alert, "stock" | "operator" | "price"> & { id: number })[]) {
+  return steps.map((step) => (
+    <MenuItem key={step.id} value={String(step.id)}>
+      {formatAlertLabel(step)}
+    </MenuItem>
+  ));
+}
 
 export function OperatorField({
   value,

@@ -1,32 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { Paper, Typography } from "@mui/material";
 import {
-  addEdge,
   Background,
   Controls,
   Handle,
   MarkerType,
   Position,
   ReactFlow,
-  ReactFlowProvider,
-  useEdgesState,
-  useNodesState,
   useReactFlow,
-  type Connection,
+  useStore,
   type Edge,
-  type IsValidConnection,
   type Node,
   type NodeProps,
 } from "@xyflow/react";
-import {
-  formatAlertCondition,
-  formatAlertLabel,
-  getStepStatus,
-  STEP_STATUS_LABELS,
-  type StepStatus,
-} from "@/lib/stockUtils";
+import { getStepDepths, orderStepsByFlow } from "@/lib/playbookFlow";
+import { formatAlertLabel, formatTimeAgo, getStepStatus, STEP_STATUS_LABELS, type StepStatus } from "@/lib/stockUtils";
 
 import "@xyflow/react/dist/style.css";
 
@@ -38,6 +29,7 @@ export type RelatedAlert = {
   operator?: string | null;
   isActive?: boolean | null;
   triggered_at?: string | null;
+  description?: string | null;
   created_at: string;
 };
 
@@ -46,289 +38,190 @@ export type AlertTransitionEdge = {
   id: number;
   source_alert_id: number;
   target_alert_id: number;
-  condition?: string | null;
   explanation?: string | null;
 };
 
-type AlertNodeData = {
+type StepNodeData = {
+  number: number;
   label: string;
-  stock: string;
-  condition: string;
   status: StepStatus;
-  createdAt: string;
+  detail: string | null;
 };
 
-const STATUS_DOT_CLASSES: Record<StepStatus, string> = {
-  waiting: "bg-zinc-400",
-  watching: "bg-blue-500",
-  done: "bg-emerald-500",
+type StepNode = Node<StepNodeData, "step">;
+
+const NODE_WIDTH = 210;
+const COLUMN_GAP = 48;
+const ROW_HEIGHT = 130;
+
+// Same colours as the step status chips: grey waiting, blue watching, green done.
+const STATUS_COLORS: Record<StepStatus, string> = {
+  waiting: "#a1a1aa",
+  watching: "#3b82f6",
+  done: "#10b981",
 };
 
-type AlertNode = Node<AlertNodeData, "alert">;
-
-const NODE_WIDTH = 200;
-const ROW_HEIGHT = 150;
-
-// Lays nodes out newest-at-bottom. Edges come from recorded transitions when present,
-// otherwise alerts are chained to the one created right before them.
-function buildGraph(
-  alerts: RelatedAlert[],
-  transitions: AlertTransitionEdge[]
-): { nodes: AlertNode[]; edges: Edge[] } {
-  const ordered = [...alerts].sort(
-    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-  );
-
-  const nodes: AlertNode[] = ordered.map((alert, index) => ({
-    id: String(alert.id),
-    type: "alert",
-    position: { x: index % 2 === 0 ? 0 : NODE_WIDTH - 40, y: index * ROW_HEIGHT },
-    data: {
-      label: formatAlertLabel(alert),
-      stock: alert.stock,
-      condition: formatAlertCondition(alert),
-      status: getStepStatus(alert),
-      createdAt: alert.created_at,
-    },
-  }));
-
-  const alertIds = new Set(ordered.map((alert) => String(alert.id)));
-  const validTransitions = transitions.filter(
-    (t) => alertIds.has(String(t.source_alert_id)) && alertIds.has(String(t.target_alert_id))
-  );
-
-  const edges: Edge[] =
-    validTransitions.length > 0
-      ? validTransitions.map((transition) => ({
-          id: `t-${transition.id}`,
-          source: String(transition.source_alert_id),
-          target: String(transition.target_alert_id),
-          type: "smoothstep",
-          label: transition.condition ?? undefined,
-          markerEnd: { type: MarkerType.ArrowClosed },
-        }))
-      : ordered.slice(1).map((alert, index) => ({
-          id: `e-${ordered[index].id}-${alert.id}`,
-          source: String(ordered[index].id),
-          target: String(alert.id),
-          type: "smoothstep",
-          markerEnd: { type: MarkerType.ArrowClosed },
-        }));
-
-  return { nodes, edges };
+// Graph height follows the number of rows, so a short playbook doesn't float in empty space.
+function graphHeight(rowCount: number) {
+  return Math.min(560, Math.max(220, rowCount * ROW_HEIGHT + 60));
 }
 
-
-function AlertCardNode({ id, data }: NodeProps<AlertNode>) {
-  const { updateNodeData } = useReactFlow();
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(data.label);
-
-  function commit() {
-    setEditing(false);
-    const next = draft.trim();
-    if (next) updateNodeData(id, { label: next });
-    else setDraft(data.label);
+// One row per flow depth (first steps on top), steps at the same depth side by side, centered.
+function buildGraph(
+  alerts: RelatedAlert[],
+  transitions: AlertTransitionEdge[],
+): { nodes: StepNode[]; edges: Edge[]; rowCount: number } {
+  const depths = getStepDepths(alerts, transitions);
+  const numbers = new Map(orderStepsByFlow(alerts, transitions).map((alert, index) => [alert.id, index + 1]));
+  const statuses = new Map(alerts.map((alert) => [alert.id, getStepStatus(alert)]));
+  const rows = new Map<number, RelatedAlert[]>();
+  for (const alert of [...alerts].sort((a, b) => a.created_at.localeCompare(b.created_at))) {
+    const depth = depths.get(alert.id)!;
+    rows.set(depth, [...(rows.get(depth) ?? []), alert]);
   }
 
+  const nodes: StepNode[] = [...rows].flatMap(([depth, row]) =>
+    row.map((alert, index) => ({
+      id: String(alert.id),
+      type: "step",
+      position: {
+        x: (index - (row.length - 1) / 2) * (NODE_WIDTH + COLUMN_GAP),
+        y: depth * ROW_HEIGHT,
+      },
+      data: {
+        number: numbers.get(alert.id)!,
+        label: formatAlertLabel(alert),
+        status: statuses.get(alert.id)!,
+        detail: alert.triggered_at ? `Fired ${formatTimeAgo(alert.triggered_at)}` : alert.description || null,
+      },
+    })),
+  );
+
+  const edges: Edge[] = transitions
+    .filter((t) => depths.has(t.source_alert_id) && depths.has(t.target_alert_id))
+    .map((transition) => {
+      // Green once the step before has fired, so the path already taken stands out.
+      const color = statuses.get(transition.source_alert_id) === "done" ? STATUS_COLORS.done : "#71717a";
+      return {
+        id: `t-${transition.id}`,
+        source: String(transition.source_alert_id),
+        target: String(transition.target_alert_id),
+        type: "smoothstep",
+        label: transition.explanation ?? undefined,
+        labelStyle: { fontSize: 12, fill: "#3f3f46" },
+        labelBgStyle: { fill: "#ffffff", fillOpacity: 0.95 },
+        labelBgPadding: [6, 3] as [number, number],
+        labelBgBorderRadius: 4,
+        style: { stroke: color, strokeWidth: 1.75 },
+        markerEnd: { type: MarkerType.ArrowClosed, color },
+      };
+    });
+
+  return { nodes, edges, rowCount: rows.size };
+}
+
+// Handles only anchor the edges; they're hidden since nothing can be connected here.
+const hiddenHandle = { opacity: 0, pointerEvents: "none" } as const;
+
+function StepCardNode({ data }: NodeProps<StepNode>) {
   return (
     <div
-      className="rounded-lg border border-zinc-200 bg-white px-3 py-2 shadow-sm dark:border-zinc-700 dark:bg-zinc-900"
-      style={{ width: NODE_WIDTH }}
+      className="cursor-pointer rounded-lg border border-zinc-200 bg-white py-2 pl-3 pr-3 shadow-sm transition-shadow hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900"
+      style={{ width: NODE_WIDTH, borderLeft: `4px solid ${STATUS_COLORS[data.status]}` }}
+      title="Open this step's chart"
     >
-      <Handle type="target" position={Position.Top} />
-
-      <div className="flex items-center justify-between gap-2">
-        <span className="flex items-center gap-1 text-[11px] text-zinc-600">
-          <span className={`h-2 w-2 shrink-0 rounded-full ${STATUS_DOT_CLASSES[data.status]}`} />
+      <Handle type="target" position={Position.Top} isConnectable={false} style={hiddenHandle} />
+      <div className="flex items-center justify-between text-xs text-zinc-500">
+        <span>Step {data.number}</span>
+        <span className="font-medium" style={{ color: STATUS_COLORS[data.status] }}>
           {STEP_STATUS_LABELS[data.status]}
         </span>
-        <span className="truncate text-[11px] text-zinc-500">
-          {new Date(data.createdAt).toLocaleDateString()}
-        </span>
       </div>
-
-      {editing ? (
-        <input
-          autoFocus
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={commit}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") commit();
-            if (e.key === "Escape") {
-              setDraft(data.label);
-              setEditing(false);
-            }
-          }}
-          className="mt-1 w-full rounded border px-1 py-0.5 text-sm"
-        />
-      ) : (
-        <p
-          className="mt-1 cursor-text truncate text-sm font-medium"
-          title="Double-click to rename"
-          onDoubleClick={() => {
-            setDraft(data.label);
-            setEditing(true);
-          }}
-        >
-          {data.label}
-        </p>
-      )}
-
-      <p className="truncate text-xs text-zinc-500">
-        {data.stock} · {data.condition}
-      </p>
-
-      <Handle type="source" position={Position.Bottom} />
+      <p className="mt-0.5 truncate text-base font-semibold text-zinc-900 dark:text-zinc-100">{data.label}</p>
+      {data.detail && <p className="truncate text-xs text-zinc-500">{data.detail}</p>}
+      <Handle type="source" position={Position.Bottom} isConnectable={false} style={hiddenHandle} />
     </div>
   );
 }
 
-const nodeTypes = { alert: AlertCardNode };
+const nodeTypes = { step: StepCardNode };
 
-function AlertRelationshipGraphInner({
-  alerts,
-  transitions,
-}: {
-  alerts: RelatedAlert[];
-  transitions: AlertTransitionEdge[];
-}) {
-  const initial = useMemo(() => buildGraph(alerts, transitions), [alerts, transitions]);
-  const [nodes, setNodes, onNodesChange] = useNodesState<AlertNode>(initial.nodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initial.edges);
+// Fit everything, but never blow a few steps up past their natural size.
+const FIT_VIEW_OPTIONS = { padding: 0.15, maxZoom: 1 };
 
-  // Only rebuild from props when the linked alerts or transitions actually change,
-  // so manual dragging/edits aren't wiped out by unrelated re-renders.
-  const signatureRef = useRef(
-    `${alerts.map((a) => a.id).sort((a, b) => a - b).join(",")}|${transitions
-      .map((t) => t.id)
-      .sort((a, b) => a - b)
-      .join(",")}`
-  );
-
+// fitView only runs on mount, so re-fit when the graph's width changes (window or layout resize).
+function FitViewOnResize() {
+  const { fitView } = useReactFlow();
+  const width = useStore((state) => state.width);
   useEffect(() => {
-    const signature = `${alerts.map((a) => a.id).sort((a, b) => a - b).join(",")}|${transitions
-      .map((t) => t.id)
-      .sort((a, b) => a - b)
-      .join(",")}`;
+    if (width > 0) fitView(FIT_VIEW_OPTIONS);
+  }, [width, fitView]);
+  return null;
+}
 
-    if (signature !== signatureRef.current) {
-      signatureRef.current = signature;
-      const rebuilt = buildGraph(alerts, transitions);
-      setNodes(rebuilt.nodes);
-      setEdges(rebuilt.edges);
-    }
-  }, [alerts, transitions, setNodes, setEdges]);
-
-  const onConnect = useCallback(
-    (connection: Connection) => {
-      setEdges((current) =>
-        addEdge(
-          {
-            ...connection,
-            id: `e-${connection.source}-${connection.target}-${Date.now()}`,
-            type: "smoothstep",
-            markerEnd: { type: MarkerType.ArrowClosed },
-          },
-          current
-        )
-      );
-    },
-    [setEdges]
-  );
-
-  // Reject self-connections and duplicate relationships (in either direction).
-  const isValidConnection: IsValidConnection<Edge> = useCallback(
-    (connection) => {
-      if (
-        !connection.source ||
-        !connection.target ||
-        connection.source === connection.target
-      ) {
-        return false;
-      }
-
-      return !edges.some(
-        (edge) =>
-          (edge.source === connection.source && edge.target === connection.target) ||
-          (edge.source === connection.target && edge.target === connection.source)
-      );
-    },
-    [edges]
-  );
-
-  const resetLayout = useCallback(() => {
-    const rebuilt = buildGraph(alerts, transitions);
-    setNodes(rebuilt.nodes);
-    setEdges(rebuilt.edges);
-  }, [alerts, transitions, setNodes, setEdges]);
+// Read-only map of a playbook's steps; steps are edited in the Steps list. Clicking a step opens its page.
+export default function AlertRelationshipGraph({
+  playbookId,
+  alerts,
+  transitions = [],
+}: {
+  playbookId: number;
+  alerts: RelatedAlert[];
+  transitions?: AlertTransitionEdge[];
+}) {
+  const router = useRouter();
+  const { nodes, edges, rowCount } = useMemo(() => buildGraph(alerts, transitions), [alerts, transitions]);
+  // Remount when the steps or links change, so the view re-fits to the new graph.
+  const layoutKey = `${nodes.map((node) => node.id).join(",")}|${edges.map((edge) => edge.id).join(",")}`;
 
   return (
-    <>
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-xs text-zinc-500">
-          Drag between handles to relate steps. Double-click a node to rename it.
-        </p>
-        <button
-          type="button"
-          onClick={resetLayout}
-          className="shrink-0 rounded-md border px-2 py-1 text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800"
-        >
-          Reset to time order
-        </button>
+    <Paper component="section" elevation={1} sx={{ p: 2, position: { lg: "sticky" }, top: { lg: 16 } }}>
+      <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+        Step flow
+      </Typography>
+      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
+        How the steps lead into each other. Click a step to see its chart; zoom with the buttons or a pinch.
+      </Typography>
+      <div className="mb-1.5 flex flex-wrap gap-3 text-xs text-zinc-600">
+        {(Object.keys(STATUS_COLORS) as StepStatus[]).map((status) => (
+          <span key={status} className="flex items-center gap-1">
+            <span className="h-2.5 w-2.5 rounded-sm" style={{ background: STATUS_COLORS[status] }} />
+            {STEP_STATUS_LABELS[status]}
+          </span>
+        ))}
       </div>
 
-      <div className="h-[560px] overflow-hidden rounded-lg border">
+      <div className="overflow-hidden rounded-lg border" style={{ height: graphHeight(rowCount) }}>
         {nodes.length === 0 ? (
           <div className="flex h-full items-center justify-center px-4 text-center text-sm text-zinc-500">
             Add steps to this playbook to see how they connect.
           </div>
         ) : (
           <ReactFlow
+            key={layoutKey}
             nodes={nodes}
             edges={edges}
             nodeTypes={nodeTypes}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            isValidConnection={isValidConnection}
-            nodesDraggable
-            nodesConnectable
-            elementsSelectable
-            deleteKeyCode={["Backspace", "Delete"]}
+            nodesDraggable={false}
+            nodesConnectable={false}
+            elementsSelectable={false}
+            deleteKeyCode={null}
+            onNodeClick={(_event, node) => router.push(`/playbooks/${playbookId}/steps/${node.id}`)}
             fitView
+            fitViewOptions={FIT_VIEW_OPTIONS}
+            minZoom={0.3}
+            maxZoom={1.75}
+            // Let the page scroll over the graph; zoom with the controls, a pinch or ctrl+wheel.
+            zoomOnScroll={false}
+            preventScrolling={false}
+            zoomOnDoubleClick={false}
           >
-            <Background />
-            <Controls showInteractive={false} />
+            <Background gap={20} size={1} />
+            <Controls showInteractive={false} position="bottom-right" fitViewOptions={FIT_VIEW_OPTIONS} />
+            <FitViewOnResize />
           </ReactFlow>
         )}
       </div>
-    </>
-  );
-}
-
-export default function AlertRelationshipGraph({
-  alerts,
-  transitions = [],
-}: {
-  alerts: RelatedAlert[];
-  transitions?: AlertTransitionEdge[];
-}) {
-  return (
-    <Paper component="section" elevation={1} sx={{ p: 2, position: { lg: "sticky" }, top: { lg: 16 } }}>
-      <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 600 }}>
-        Step flow
-      </Typography>
-      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5 }}>
-        {transitions.length > 0
-          ? "Edges reflect the playbook's transitions. Drag to rearrange or connect steps manually."
-          : "Steps are chained in creation order. Drag to rearrange or connect steps manually."}
-      </Typography>
-
-      <ReactFlowProvider>
-        <AlertRelationshipGraphInner alerts={alerts} transitions={transitions} />
-      </ReactFlowProvider>
     </Paper>
   );
 }

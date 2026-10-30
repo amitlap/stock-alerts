@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { Typography } from "@mui/material";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import { removePlaybook, type PlaybookWithSteps } from "@/lib/actions";
 import { usePendingId } from "@/lib/hooks";
@@ -63,7 +64,13 @@ export default function PlaybooksList({ playbooks }: { playbooks: PlaybookWithSt
   ];
 
   return (
-    <DataGrid
+    <>
+      {deleting.error && (
+        <Typography color="error" variant="body2" sx={{ mb: 1 }}>
+          Couldn&apos;t delete the playbook: {deleting.error}
+        </Typography>
+      )}
+      <DataGrid
       autoHeight
       rows={playbooks}
       columns={columns}
@@ -74,6 +81,7 @@ export default function PlaybooksList({ playbooks }: { playbooks: PlaybookWithSt
         "& .MuiDataGrid-row": { cursor: "pointer" },
         "& .MuiDataGrid-cell": { display: "flex", alignItems: "center" },
       }}
-    />
+      />
+    </>
   );
 }

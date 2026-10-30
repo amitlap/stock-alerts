@@ -5,10 +5,13 @@ import PlaybookDetailView from "@/components/PlaybookDetailView";
 
 export default async function PlaybookPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  // ?edit=<stepId> opens that step's editor, e.g. from "Edit in playbook" on a step's page.
+  searchParams: Promise<{ edit?: string }>;
 }) {
-  const { id } = await params;
+  const [{ id }, { edit }] = await Promise.all([params, searchParams]);
   const playbook = await getPlaybookById(Number(id));
 
   if (!playbook) {
@@ -26,7 +29,12 @@ export default async function PlaybookPage({
         <Link href="/playbooks" className="text-sm text-zinc-500 hover:underline">
           ← Back to playbooks
         </Link>
-        <PlaybookDetailView playbook={playbook} linkedAlerts={steps} transitions={transitions} />
+        <PlaybookDetailView
+          playbook={playbook}
+          linkedAlerts={steps}
+          transitions={transitions}
+          initialEditStepId={edit ? Number(edit) : undefined}
+        />
       </main>
     </div>
   );

@@ -82,9 +82,13 @@ export default function MarketValuationTable({
               <TableCell sx={{ color: "text.secondary", whiteSpace: "nowrap" }}>
                 {row.metric}
               </TableCell>
-              <TableCell sx={{ fontWeight: 500 }}>{row.value}</TableCell>
-              <TableCell sx={{ color: "text.disabled" }}>
-                <Typography variant="caption">{row.note}</Typography>
+              <TableCell sx={{ fontWeight: 500 }}>
+                {row.value}
+                {row.note && (
+                  <Typography variant="caption" color="text.disabled" sx={{ display: "block", fontWeight: 400 }}>
+                    {row.note}
+                  </Typography>
+                )}
               </TableCell>
             </TableRow>
           ))}

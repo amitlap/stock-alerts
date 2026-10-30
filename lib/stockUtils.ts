@@ -102,3 +102,28 @@ export function getPlaybookProgress(steps: StepState[]) {
   for (const step of steps) counts[getStepStatus(step)]++;
   return { ...counts, total: steps.length };
 }
+
+// Steps within this % of their trigger price count as "near trigger" on the dashboard.
+export const NEAR_TRIGGER_PERCENT = 2;
+
+// How far (as % of the current price) the price still has to move for the step to fire; 0 once it's there.
+export function distanceToTrigger(step: Pick<Alert, "operator" | "price">, currentPrice: number): number | null {
+  if (step.price == null || currentPrice === 0) return null;
+  const gap = (step.operator ?? ">") === ">" ? step.price - currentPrice : currentPrice - step.price;
+  return Math.max(0, (gap / currentPrice) * 100);
+}
+
+// "5 minutes ago", "2 days ago".
+export function formatTimeAgo(date: string | Date, now = new Date()): string {
+  const seconds = (new Date(date).getTime() - now.getTime()) / 1000;
+  const units: [Intl.RelativeTimeFormatUnit, number][] = [
+    ["day", 86400],
+    ["hour", 3600],
+    ["minute", 60],
+  ];
+  const format = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+  for (const [unit, size] of units) {
+    if (Math.abs(seconds) >= size) return format.format(Math.round(seconds / size), unit);
+  }
+  return "just now";
+}
