@@ -9,7 +9,7 @@ import {
   type StepStatus,
 } from "@/lib/stockUtils";
 
-export const STEP_STATUS_COLORS: Record<StepStatus, ChipProps["color"]> = {
+const STEP_STATUS_COLORS: Record<StepStatus, ChipProps["color"]> = {
   waiting: "default",
   watching: "primary",
   done: "success",

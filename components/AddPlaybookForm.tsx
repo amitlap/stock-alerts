@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button, TextField, Typography } from "@mui/material";
-import { ConditionFields } from "./AlertFields";
+import { ConditionFields } from "./StepFields";
 import FormDialog from "./FormDialog";
 import { useNewPlaybook } from "./useNewPlaybook";
 

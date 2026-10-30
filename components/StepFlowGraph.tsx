@@ -16,30 +16,11 @@ import {
   type Node,
   type NodeProps,
 } from "@xyflow/react";
+import type { Alert, AlertTransition } from "@/lib/actions";
 import { getStepDepths, orderStepsByFlow } from "@/lib/playbookFlow";
 import { formatAlertLabel, formatTimeAgo, getStepStatus, STEP_STATUS_LABELS, type StepStatus } from "@/lib/stockUtils";
 
 import "@xyflow/react/dist/style.css";
-
-// Minimal shape the graph needs; satisfied by the `Alert` rows from lib/actions.
-export type RelatedAlert = {
-  id: number;
-  stock: string;
-  price?: number | null;
-  operator?: string | null;
-  isActive?: boolean | null;
-  triggered_at?: string | null;
-  description?: string | null;
-  created_at: string;
-};
-
-// Minimal shape the graph needs; satisfied by the `AlertTransition` rows from lib/actions.
-export type AlertTransitionEdge = {
-  id: number;
-  source_alert_id: number;
-  target_alert_id: number;
-  explanation?: string | null;
-};
 
 type StepNodeData = {
   number: number;
@@ -63,18 +44,18 @@ const STATUS_COLORS: Record<StepStatus, string> = {
 
 // Graph height follows the number of rows, so a short playbook doesn't float in empty space.
 function graphHeight(rowCount: number) {
-  return Math.min(560, Math.max(220, rowCount * ROW_HEIGHT + 60));
+  return Math.min(720, Math.max(420, rowCount * ROW_HEIGHT + 80));
 }
 
 // One row per flow depth (first steps on top), steps at the same depth side by side, centered.
 function buildGraph(
-  alerts: RelatedAlert[],
-  transitions: AlertTransitionEdge[],
+  alerts: Alert[],
+  transitions: AlertTransition[],
 ): { nodes: StepNode[]; edges: Edge[]; rowCount: number } {
   const depths = getStepDepths(alerts, transitions);
   const numbers = new Map(orderStepsByFlow(alerts, transitions).map((alert, index) => [alert.id, index + 1]));
   const statuses = new Map(alerts.map((alert) => [alert.id, getStepStatus(alert)]));
-  const rows = new Map<number, RelatedAlert[]>();
+  const rows = new Map<number, Alert[]>();
   for (const alert of [...alerts].sort((a, b) => a.created_at.localeCompare(b.created_at))) {
     const depth = depths.get(alert.id)!;
     rows.set(depth, [...(rows.get(depth) ?? []), alert]);
@@ -160,14 +141,14 @@ function FitViewOnResize() {
 }
 
 // Read-only map of a playbook's steps; steps are edited in the Steps list. Clicking a step opens its page.
-export default function AlertRelationshipGraph({
+export default function StepFlowGraph({
   playbookId,
   alerts,
   transitions = [],
 }: {
   playbookId: number;
-  alerts: RelatedAlert[];
-  transitions?: AlertTransitionEdge[];
+  alerts: Alert[];
+  transitions?: AlertTransition[];
 }) {
   const router = useRouter();
   const { nodes, edges, rowCount } = useMemo(() => buildGraph(alerts, transitions), [alerts, transitions]);

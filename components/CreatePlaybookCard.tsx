@@ -1,7 +1,7 @@
 "use client";
 
 import { Box, Button, Paper, TextField, Typography } from "@mui/material";
-import { ConditionFields } from "./AlertFields";
+import { ConditionFields } from "./StepFields";
 import { useNewPlaybook } from "./useNewPlaybook";
 
 // Dashboard's first panel: create a playbook and its first step without opening a dialog.

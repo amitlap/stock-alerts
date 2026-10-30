@@ -16,7 +16,7 @@ export function stepMenuItems(steps: (Pick<Alert, "stock" | "operator" | "price"
   ));
 }
 
-export function OperatorField({
+function OperatorField({
   value,
   onChange,
 }: {
@@ -41,7 +41,7 @@ export function OperatorField({
   );
 }
 
-export function PriceField({ value, onChange }: { value: string; onChange: (price: string) => void }) {
+function PriceField({ value, onChange }: { value: string; onChange: (price: string) => void }) {
   return (
     <TextField
       label="Price"

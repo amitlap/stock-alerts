@@ -6,7 +6,7 @@ import { addAlert, updateAlert, type Alert, type AlertTransition } from "@/lib/a
 import { useAsyncAction } from "@/lib/hooks";
 import { getStepWithDescendants } from "@/lib/playbookFlow";
 import { formatAlertLabel, parsePrice } from "@/lib/stockUtils";
-import { ActiveSwitch, ConditionFields, stepMenuItems, type ConditionDraft } from "./AlertFields";
+import { ActiveSwitch, ConditionFields, stepMenuItems, type ConditionDraft } from "./StepFields";
 import FormDialog from "./FormDialog";
 
 // Not "", which MUI's select would show as empty instead of this option's label.
@@ -37,11 +37,7 @@ export default function StepDialog({
 }) {
   const editing = target.mode === "edit" ? target.step : null;
   const incoming = editing ? transitions.find((t) => t.target_alert_id === editing.id) : undefined;
-  const initialSourceId = editing
-    ? incoming?.source_alert_id ?? null
-    : target.mode === "add"
-      ? target.sourceStepId
-      : null;
+  const initialSourceId = target.mode === "edit" ? incoming?.source_alert_id ?? null : target.sourceStepId;
 
   const [condition, setCondition] = useState<ConditionDraft>(
     editing

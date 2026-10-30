@@ -45,7 +45,7 @@ function StepLinks({ playbookId, steps }: { playbookId: number; steps: Alert[] }
 
 // Read-only view of one playbook step: its chart and where it sits in the playbook.
 // Steps are edited from the playbook page.
-export default function AlertPageView({
+export default function StepPageView({
   alert,
   stock,
   candles,

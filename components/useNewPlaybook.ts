@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { addPlaybook } from "@/lib/actions";
 import { useAsyncAction } from "@/lib/hooks";
 import { parsePrice } from "@/lib/stockUtils";
-import { EMPTY_CONDITION } from "./AlertFields";
+import { EMPTY_CONDITION } from "./StepFields";
 
 // Form state for creating a playbook with its first step; on success it opens the new playbook.
 export function useNewPlaybook(userEmail: string) {

@@ -7,7 +7,7 @@ import {
   getPlaybookById,
   getTransitionsByPlaybook,
 } from "@/lib/actions";
-import AlertPageView from "@/components/AlertPageView";
+import StepPageView from "@/components/StepPageView";
 
 export default async function StepPage({
   params,
@@ -40,7 +40,7 @@ export default async function StepPage({
         <Link href={`/playbooks/${playbook.id}`} className="text-sm text-zinc-500 hover:underline">
           ← Back to {playbook.name || "playbook"}
         </Link>
-        <AlertPageView
+        <StepPageView
           alert={step}
           stock={stock}
           candles={candles}

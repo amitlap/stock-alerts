@@ -1,22 +1,11 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { CandlestickSeries, createChart, type MouseEventParams } from "lightweight-charts";
+import { CandlestickSeries, createChart } from "lightweight-charts";
 import type { Candle } from "@/lib/stockUtils";
 
-export default function StockChart({
-  data,
-  onPriceClick,
-}: {
-  data: Candle[];
-  onPriceClick?: (price: number) => void;
-}) {
+export default function StockChart({ data }: { data: Candle[] }) {
   const container = useRef<HTMLDivElement>(null);
-  const onPriceClickRef = useRef(onPriceClick);
-
-  useEffect(() => {
-    onPriceClickRef.current = onPriceClick;
-  }, [onPriceClick]);
 
   useEffect(() => {
     const el = container.current;
@@ -35,20 +24,7 @@ export default function StockChart({
     series.setData(data);
     chart.timeScale().fitContent();
 
-    function handleClick(param: MouseEventParams) {
-      if (!param.point) return;
-      // Convert the clicked pixel position back to a price on this series' scale.
-      const price = series.coordinateToPrice(param.point.y);
-      if (price != null) {
-        onPriceClickRef.current?.(price);
-      }
-    }
-    chart.subscribeClick(handleClick);
-
-    return () => {
-      chart.unsubscribeClick(handleClick);
-      chart.remove();
-    };
+    return () => chart.remove();
   }, [data]);
 
   return <div ref={container} style={{ height: "100%", width: "100%" }} />;

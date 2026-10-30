@@ -213,17 +213,6 @@ export async function updateAlert(id: number, alert: NewAlert, after?: StepSourc
   return data;
 }
 
-export async function getAlertById(id: number): Promise<Alert | null> {
-  const supabase = createClient(await cookies());
-  const { data, error } = await supabase.from("alerts").select(ALERT_COLUMNS).eq("id", id).maybeSingle();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return data;
-}
-
 // Deletes a step along with the transitions into and out of it.
 export async function removeAlert(id: number): Promise<void> {
   const supabase = createClient(await cookies());
