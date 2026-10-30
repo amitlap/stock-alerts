@@ -25,7 +25,7 @@ type PlaybookAlert = AlertRow & { created_at: string };
 
 function alertMenuItems(alerts: PlaybookAlert[]) {
   return alerts.map((alert) => (
-    <MenuItem key={alert.id} value={alert.id}>
+    <MenuItem key={alert.id} value={String(alert.id)}>
       {formatAlertLabel(alert)}
     </MenuItem>
   ));
