@@ -78,8 +78,7 @@ async function checkStocks() {
   }
 
   // Only the stocks some playbook step is currently watching.
-  const tickers = [...new Set((alerts ?? []).map((alert) => alert.stock))];
-  const stocks = tickers.length > 0 ? await getLatestStockPrices(tickers) : [];
+  const stocks = await getLatestStockPrices((alerts ?? []).map((alert) => alert.stock));
   const matchingAlerts = getMatchingAlerts(alerts ?? [], stocks);
   console.log(
     "Stocks fulfilling alert conditions:",

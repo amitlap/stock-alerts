@@ -6,8 +6,25 @@ import { priceChangeColor, type StockPrice } from "@/lib/stockUtils";
 import TradingViewWidget from "./TradingViewWidget";
 
 // A TradingView chart with a chip per followed stock (showing its price) to switch between them.
-export default function TickerChart({ stocks }: { stocks: StockPrice[] }) {
-  const [symbol, setSymbol] = useState(stocks[0]?.symbol);
+// Pass `symbol` to control which stock is shown; the chart only reloads when that stock changes.
+export default function TickerChart({
+  stocks,
+  symbol: controlledSymbol,
+  onSymbolChange,
+  height = 460,
+}: {
+  stocks: StockPrice[];
+  symbol?: string;
+  onSymbolChange?: (symbol: string) => void;
+  height?: number;
+}) {
+  const [ownSymbol, setOwnSymbol] = useState(stocks[0]?.symbol);
+  const symbol = controlledSymbol ?? ownSymbol;
+
+  function setSymbol(next: string) {
+    setOwnSymbol(next);
+    onSymbolChange?.(next);
+  }
 
   if (!symbol) return null;
 
@@ -31,7 +48,7 @@ export default function TickerChart({ stocks }: { stocks: StockPrice[] }) {
           />
         ))}
       </Stack>
-      <Box sx={{ height: 460 }}>
+      <Box sx={{ height }}>
         <TradingViewWidget ticker={symbol} />
       </Box>
     </>

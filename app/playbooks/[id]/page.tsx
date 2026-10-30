@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getAlertsByPlaybook, getPlaybookById, getTransitionsByPlaybook } from "@/lib/actions";
+import { getAlertsByPlaybook, getLatestStockPrices, getPlaybookById, getTransitionsByPlaybook } from "@/lib/actions";
 import PlaybookDetailView from "@/components/PlaybookDetailView";
 
 export default async function PlaybookPage({
@@ -22,6 +22,7 @@ export default async function PlaybookPage({
     getAlertsByPlaybook(playbook.id),
     getTransitionsByPlaybook(playbook.id),
   ]);
+  const stocks = await getLatestStockPrices(steps.map((step) => step.stock));
 
   return (
     <div className="flex flex-col flex-1 bg-zinc-50 font-sans dark:bg-black">
@@ -33,6 +34,7 @@ export default async function PlaybookPage({
           playbook={playbook}
           linkedAlerts={steps}
           transitions={transitions}
+          stocks={stocks}
           initialEditStepId={edit ? Number(edit) : undefined}
         />
       </main>

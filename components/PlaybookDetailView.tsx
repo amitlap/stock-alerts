@@ -13,8 +13,10 @@ import {
 } from "@/lib/actions";
 import { useAsyncAction, usePendingId } from "@/lib/hooks";
 import { orderStepsByFlow } from "@/lib/playbookFlow";
-import { formatAlertLabel, formatTimeAgo } from "@/lib/stockUtils";
+import { formatAlertLabel, formatTimeAgo, getStepStatus, type StockPrice } from "@/lib/stockUtils";
 import StepFlowGraph from "./StepFlowGraph";
+import { SELECTED_STEP_STYLE } from "./stepSelection";
+import TickerChart from "./TickerChart";
 import ButtonLink from "./ButtonLink";
 import FormDialog from "./FormDialog";
 import PlaybookProgress, { StepStatusChip } from "./PlaybookProgress";
@@ -55,10 +57,12 @@ function StepRow({
         p: 1,
         borderRadius: 1,
         border: 1,
-        borderColor: selected ? "primary.main" : "divider",
-        bgcolor: selected ? "action.selected" : "background.paper",
+        borderColor: "divider",
+        bgcolor: "background.paper",
         cursor: "pointer",
-        "&:hover": { bgcolor: selected ? "action.selected" : "action.hover" },
+        transition: "background-color 120ms, box-shadow 120ms",
+        "&:hover": { bgcolor: "action.hover" },
+        ...(selected && { ...SELECTED_STEP_STYLE, "&:hover": { bgcolor: SELECTED_STEP_STYLE.backgroundColor } }),
       }}
     >
       <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }}>
@@ -123,11 +127,13 @@ export default function PlaybookDetailView({
   playbook,
   linkedAlerts,
   transitions,
+  stocks,
   initialEditStepId,
 }: {
   playbook: Playbook;
   linkedAlerts: Alert[];
   transitions: AlertTransition[];
+  stocks: StockPrice[];
   initialEditStepId?: number;
 }) {
   const router = useRouter();
@@ -136,6 +142,7 @@ export default function PlaybookDetailView({
   const [description, setDescription] = useState(playbook.description ?? "");
   // The step clicked in the Steps list; the next added step follows it.
   const [selectedStepId, setSelectedStepId] = useState<number | null>(null);
+  const [chosenSymbol, setChosenSymbol] = useState<string | null>(null);
   const initialEditStep = linkedAlerts.find((step) => step.id === initialEditStepId);
   const [dialog, setDialog] = useState<StepDialogTarget | null>(
     initialEditStep ? { mode: "edit", step: initialEditStep } : null,
@@ -150,6 +157,21 @@ export default function PlaybookDetailView({
   const selectedStep = selectedStepId != null ? stepById.get(selectedStepId) ?? null : null;
   // With nothing selected, a new step follows the last one in the flow.
   const defaultSource = selectedStep ?? steps[steps.length - 1] ?? null;
+  // The chart follows the selected step's stock (or a chip the user picked), starting on the
+  // stock of the first watching step.
+  const chartSymbol =
+    chosenSymbol ?? steps.find((step) => getStepStatus(step) === "watching")?.stock ?? steps[0]?.stock;
+
+  // Selecting a step (in the list or the graph) also shows its stock in the price chart;
+  // selecting the selected step again clears the selection.
+  function toggleStep(step: Alert) {
+    if (selectedStep?.id === step.id) {
+      setSelectedStepId(null);
+    } else {
+      setSelectedStepId(step.id);
+      setChosenSymbol(step.stock);
+    }
+  }
 
   async function handleSaveDescription() {
     const saved = await savePlaybook.run(() =>
@@ -181,7 +203,10 @@ export default function PlaybookDetailView({
 
   function handleStepSaved(step: Alert) {
     // A new step becomes the selection, so adding another one continues the chain from it.
-    if (dialog?.mode === "add") setSelectedStepId(step.id);
+    if (dialog?.mode === "add") {
+      setSelectedStepId(step.id);
+      setChosenSymbol(step.stock);
+    }
     setDialog(null);
     router.refresh();
   }
@@ -190,35 +215,33 @@ export default function PlaybookDetailView({
     <Box
       sx={{
         display: "grid",
-        // A slim steps list (about 15% of the width) next to a large step flow graph.
+        // A slim steps list (about 15% of the width) next to the step flow and the price chart.
         gridTemplateColumns: { xs: "1fr", md: "minmax(210px, 15%) minmax(0, 1fr)" },
         gap: 2,
         alignItems: "start",
         mt: 1.5,
       }}
     >
-      <Paper component="section" elevation={1} sx={{ p: 2.5, gridColumn: "1 / -1" }}>
-        <Stack direction="row" spacing={2} sx={{ alignItems: "flex-start", justifyContent: "space-between" }}>
-          <Box sx={{ minWidth: 0 }}>
-            <Typography variant="h5" component="h1">
+      <Paper component="section" elevation={1} sx={{ px: 2, py: 1.25, gridColumn: "1 / -1" }}>
+        <Stack direction="row" spacing={2} sx={{ alignItems: "center", flexWrap: { xs: "wrap", md: "nowrap" } }}>
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Typography
+              variant="h6"
+              component="h1"
+              noWrap
+              title={`Created ${new Date(playbook.created_at).toLocaleString()}`}
+              sx={{ fontWeight: 600, lineHeight: 1.3 }}
+            >
               {playbook.name || `Playbook #${playbook.id}`}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              created {new Date(playbook.created_at).toLocaleString()} · {playbook.email}
-            </Typography>
             {playbook.description && (
-              <Typography variant="body1" sx={{ mt: 1.5, whiteSpace: "pre-wrap" }}>
+              <Typography variant="body2" color="text.secondary" noWrap title={playbook.description}>
                 {playbook.description}
               </Typography>
             )}
-            <Box sx={{ mt: 2, maxWidth: 360 }}>
-              <PlaybookProgress steps={linkedAlerts} />
-            </Box>
-            {deletePlaybook.error && (
-              <Typography color="error" variant="body2" sx={{ mt: 1 }}>
-                Couldn&apos;t delete the playbook: {deletePlaybook.error}
-              </Typography>
-            )}
+          </Box>
+          <Box sx={{ width: 220, flexShrink: 0 }}>
+            <PlaybookProgress steps={linkedAlerts} compact />
           </Box>
           <Stack direction="row" spacing={1} sx={{ flexShrink: 0 }}>
             <Button size="small" variant="outlined" onClick={() => setEditOpen(true)}>
@@ -229,6 +252,11 @@ export default function PlaybookDetailView({
             </Button>
           </Stack>
         </Stack>
+        {deletePlaybook.error && (
+          <Typography color="error" variant="body2" sx={{ mt: 0.5 }}>
+            Couldn&apos;t delete the playbook: {deletePlaybook.error}
+          </Typography>
+        )}
       </Paper>
 
       <Paper component="section" elevation={1} sx={{ p: 1.5, minWidth: 0 }}>
@@ -261,7 +289,7 @@ export default function PlaybookDetailView({
                 index={index + 1}
                 selected={selectedStep?.id === step.id}
                 removing={removingStep.pendingId === step.id}
-                onSelect={() => setSelectedStepId(selectedStep?.id === step.id ? null : step.id)}
+                onSelect={() => toggleStep(step)}
                 onEdit={() => setDialog({ mode: "edit", step })}
                 onRemove={() => handleRemoveStep(step)}
               />
@@ -286,7 +314,25 @@ export default function PlaybookDetailView({
         )}
       </Paper>
 
-      <StepFlowGraph playbookId={playbook.id} alerts={linkedAlerts} transitions={transitions} />
+      <Stack spacing={2} sx={{ minWidth: 0 }}>
+        <StepFlowGraph
+          alerts={linkedAlerts}
+          transitions={transitions}
+          selectedStepId={selectedStep?.id ?? null}
+          onSelectStep={(stepId) => {
+            const step = stepById.get(stepId);
+            if (step) toggleStep(step);
+          }}
+        />
+        {chartSymbol && (
+          <Paper component="section" elevation={1} sx={{ p: 2 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+              Price chart
+            </Typography>
+            <TickerChart stocks={stocks} symbol={chartSymbol} onSymbolChange={setChosenSymbol} height={420} />
+          </Paper>
+        )}
+      </Stack>
 
       {dialog && (
         <StepDialog

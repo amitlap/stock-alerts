@@ -8,19 +8,18 @@ import { ALERT_OPERATORS, type AlertOperator, type Candle, type StockPrice } fro
 
 const yahooFinance = new YahooFinance();
 
+// Latest quote for each distinct symbol; no request at all for an empty list.
 export async function getLatestStockPrices(tickers: string[]): Promise<StockPrice[]> {
-  const quotes = await yahooFinance.quote(tickers);
+  const symbols = [...new Set(tickers)];
+  if (symbols.length === 0) return [];
 
-  const list = quotes.map((quote) => ({
+  const quotes = await yahooFinance.quote(symbols);
+  return quotes.map((quote) => ({
     symbol: quote.symbol,
     price: quote.regularMarketPrice,
     change: quote.regularMarketChange,
     changePercent: quote.regularMarketChangePercent,
   }));
-
-  console.log(list);
-
-  return list;
 }
 
 export async function getHistoricalPrices(ticker: string): Promise<Candle[]> {

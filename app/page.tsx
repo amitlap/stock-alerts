@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import { Box, LinearProgress, Paper, Stack, Typography } from "@mui/material";
@@ -11,6 +10,7 @@ import StatCard from "@/components/StatCard";
 import TickerChart from "@/components/TickerChart";
 import WatchingSteps, { type WatchingStepItem } from "@/components/WatchingSteps";
 import ButtonLink from "@/components/ButtonLink";
+import PageHeader from "@/components/PageHeader";
 import { getLatestStockPrices, getPlaybooksWithSteps } from "@/lib/actions";
 import {
   distanceToTrigger,
@@ -22,17 +22,6 @@ import {
   NEAR_TRIGGER_PERCENT,
 } from "@/lib/stockUtils";
 import { getMarketValuation } from "@/lib/marketValuation";
-
-function SectionHeader({ title, action }: { title: string; action?: ReactNode }) {
-  return (
-    <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", mb: 1.5, gap: 1 }}>
-      <Typography variant="h6" component="h2">
-        {title}
-      </Typography>
-      {action}
-    </Stack>
-  );
-}
 
 export default async function Home() {
   const supabase = createClient(await cookies());
@@ -59,7 +48,7 @@ export default async function Home() {
 
   // Prices for every stock the user's playbooks follow.
   const tickers = [...new Set(steps.map(({ step }) => step.stock))];
-  const stocks = tickers.length > 0 ? await getLatestStockPrices(tickers) : [];
+  const stocks = await getLatestStockPrices(tickers);
   const quoteBySymbol = new Map(stocks.map((stock) => [stock.symbol, stock]));
 
   // Watching steps, closest to firing first.
@@ -154,24 +143,23 @@ export default async function Home() {
 
         <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", md: "minmax(0, 2fr) minmax(0, 1fr)" } }}>
           <Paper component="section" elevation={1} sx={{ p: 2.5 }}>
-            <SectionHeader title="Watching now" action={<RunCheckButton />} />
+            <PageHeader section title="Watching now">
+              <RunCheckButton />
+            </PageHeader>
             <WatchingSteps items={watching} />
           </Paper>
           <Paper component="section" elevation={1} sx={{ p: 2.5 }}>
-            <SectionHeader title="Recent fires" />
+            <PageHeader section title="Recent fires" />
             <RecentFires items={recentFires} />
           </Paper>
         </Box>
 
         <Paper component="section" elevation={1} sx={{ p: 2.5 }}>
-          <SectionHeader
-            title="My Playbooks"
-            action={
-              <ButtonLink href="/playbooks" size="small">
-                View all ({playbooks.length})
-              </ButtonLink>
-            }
-          />
+          <PageHeader section title="My Playbooks">
+            <ButtonLink href="/playbooks" size="small">
+              View all ({playbooks.length})
+            </ButtonLink>
+          </PageHeader>
           {playbooks.length === 0 ? (
             <Typography color="text.secondary">No playbooks yet — create one above.</Typography>
           ) : (
@@ -182,12 +170,12 @@ export default async function Home() {
         <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", md: "minmax(0, 2fr) minmax(0, 1fr)" } }}>
           {chartStocks.length > 0 && (
             <Paper component="section" elevation={1} sx={{ p: 2.5 }}>
-              <SectionHeader title="Chart" />
+              <PageHeader section title="Chart" />
               <TickerChart stocks={chartStocks} />
             </Paper>
           )}
           <Paper component="section" elevation={1} sx={{ p: 2.5, gridColumn: chartStocks.length > 0 ? undefined : "1 / -1" }}>
-            <SectionHeader title="S&P 500 Snapshot" />
+            <PageHeader section title="S&P 500 Snapshot" />
             <MarketValuationTable data={marketValuation} error={marketValuationError} />
           </Paper>
         </Box>
