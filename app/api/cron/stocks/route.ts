@@ -75,9 +75,8 @@ async function checkStocks() {
     throw new Error("RESEND_API_KEY must be configured");
   }
 
-  // This route is called by a GitHub Action with no user session, so it needs the
-  // service-role client to bypass RLS; otherwise the deactivation UPDATE below would
-  // silently match 0 rows and alerts would keep re-firing on every run.
+  // This route is called by a scheduler with no user session, so it needs the service-role
+  // client to bypass RLS; otherwise the updates below would silently match 0 rows.
   const supabase = createAdminClient();
   const { data: alerts, error: alertsError } = await supabase
     .from("alerts")
@@ -92,20 +91,18 @@ async function checkStocks() {
 
   // Only the stocks some playbook step is currently watching.
   const stocks = await getLatestStockPrices((alerts ?? []).map((alert) => alert.stock));
-  const matchingAlerts = getMatchingAlerts(alerts ?? [], stocks);
-  console.log(
-    "Stocks fulfilling alert conditions:",
-    matchingAlerts.map(formatAlertLabel),
-  );
+  // Claim the matching steps (mark them done) before emailing, so a run that overlaps this one
+  // can't email the same step again. Anything that then fails is given back, to retry next run.
+  const claimedIds = await claimAlerts(supabase, getMatchingAlerts(alerts ?? [], stocks));
+  const matchingAlerts = (alerts ?? []).filter((alert) => alert.id != null && claimedIds.has(alert.id));
+  console.log("Stocks fulfilling alert conditions:", matchingAlerts.map(formatAlertLabel));
 
-  // A step fires once its email is sent: the steps after it start watching, then it's marked done.
-  // Starting the next steps first means a failure leaves the fired step active, so the next run
-  // retries it (at worst a repeated email) instead of leaving the playbook stuck.
+  // A step fires once its email is sent, and then the steps after it start watching.
   const alertEmails = await sendAlertEmails(matchingAlerts, stocks, emailKey, emailFrom);
   const firedIds = sentAlertIds(alertEmails);
-  if (await activateTargetAlerts(firedIds, supabase)) {
-    await updateAlerts(supabase, firedIds, { isActive: false, triggered_at: new Date().toISOString() });
-  }
+  const unsentIds = [...claimedIds].filter((id) => !firedIds.includes(id));
+  const handedOff = await activateTargetAlerts(firedIds, supabase);
+  await releaseAlerts(supabase, handedOff ? unsentIds : [...claimedIds]);
 
   console.log("Stock check completed!");
 
@@ -152,6 +149,33 @@ async function sendAlertEmails(
   return results;
 }
 
+// Marks the given steps done, but only those still active, and returns the ids it actually changed.
+// The update is atomic, so when two runs overlap each step is claimed (and emailed) by one of them.
+async function claimAlerts(supabase: AdminClient, matching: MatchedAlert[]) {
+  const ids = matching.map((alert) => alert.id).filter((id): id is number => id != null);
+  if (ids.length === 0) return new Set<number>();
+
+  const { data, error } = await supabase
+    .from("alerts")
+    .update({ isActive: false, triggered_at: new Date().toISOString() })
+    .in("id", ids)
+    .eq("isActive", true)
+    .select("id");
+
+  if (error) {
+    throw new Error(`Failed to claim alerts: ${error.message}`);
+  }
+
+  return new Set((data ?? []).map((row) => row.id as number));
+}
+
+// Puts claimed steps back to watching (not fired), so the next run tries them again.
+async function releaseAlerts(supabase: AdminClient, ids: number[]) {
+  if (await updateAlerts(supabase, ids, { isActive: true, triggered_at: null })) {
+    console.log("Released alerts to retry next run:", ids);
+  }
+}
+
 // The steps whose email went out; only these count as fired.
 function sentAlertIds(alertEmails: Awaited<ReturnType<typeof sendAlertEmails>>) {
   return alertEmails
@@ -163,9 +187,9 @@ function sentAlertIds(alertEmails: Awaited<ReturnType<typeof sendAlertEmails>>) 
 
 // Starts the next steps: every target of a transition whose source just fired (A -> B starts B).
 // Steps that fired in this same run are skipped so they aren't re-enabled to fire twice.
-// Returns false when it couldn't, so the fired steps stay active and are retried next run.
+// Returns false when it couldn't, so the fired steps are released and retried next run.
 async function activateTargetAlerts(firedIds: number[], supabase: AdminClient) {
-  if (firedIds.length === 0) return false;
+  if (firedIds.length === 0) return true;
 
   const { data: transitions, error } = await supabase
     .from("alert_transitions")
@@ -193,7 +217,7 @@ async function activateTargetAlerts(firedIds: number[], supabase: AdminClient) {
 async function updateAlerts(
   supabase: AdminClient,
   ids: number[],
-  patch: { isActive: boolean; triggered_at?: string },
+  patch: { isActive: boolean; triggered_at?: string | null },
 ) {
   if (ids.length === 0) return false;
 
