@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { Resend } from "resend";
 import { getLatestStockPrices } from "@/lib/actions";
 import {
@@ -9,6 +10,7 @@ import {
   type Alert,
 } from "@/lib/stockUtils";
 import { createAdminClient } from "@/utils/supabase/admin";
+import { createClient } from "@/utils/supabase/server";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -26,7 +28,18 @@ export async function GET(request: Request) {
   return respond();
 }
 
+// "Run check now" on the dashboard: only for logged-in users, since it sends emails and advances
+// playbooks for everyone.
 export async function POST() {
+  const supabase = createClient(await cookies());
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   return respond();
 }
 
@@ -85,9 +98,14 @@ async function checkStocks() {
     matchingAlerts.map(formatAlertLabel),
   );
 
+  // A step fires once its email is sent: the steps after it start watching, then it's marked done.
+  // Starting the next steps first means a failure leaves the fired step active, so the next run
+  // retries it (at worst a repeated email) instead of leaving the playbook stuck.
   const alertEmails = await sendAlertEmails(matchingAlerts, stocks, emailKey, emailFrom);
-  const sentAlertIds = await completeSentAlerts(alertEmails, supabase);
-  await activateTargetAlerts(sentAlertIds, supabase);
+  const firedIds = sentAlertIds(alertEmails);
+  if (await activateTargetAlerts(firedIds, supabase)) {
+    await updateAlerts(supabase, firedIds, { isActive: false, triggered_at: new Date().toISOString() });
+  }
 
   console.log("Stock check completed!");
 
@@ -134,49 +152,41 @@ async function sendAlertEmails(
   return results;
 }
 
-// Marks alerts done once their email has gone out: switched off, with the time they fired.
-async function completeSentAlerts(
-  alertEmails: Awaited<ReturnType<typeof sendAlertEmails>>,
-  supabase: AdminClient,
-) {
-  const sentAlertIds = alertEmails
+// The steps whose email went out; only these count as fired.
+function sentAlertIds(alertEmails: Awaited<ReturnType<typeof sendAlertEmails>>) {
+  return alertEmails
     .filter((result) => !result.error)
     .flatMap((result) => result.alerts)
     .map((alert) => alert.id)
     .filter((id): id is number => id != null);
-
-  const completed = await updateAlerts(supabase, sentAlertIds, {
-    isActive: false,
-    triggered_at: new Date().toISOString(),
-  });
-  return completed ? sentAlertIds : [];
 }
 
-// Activates the playbook's next alerts: every target of a transition whose source alert just fired.
-// Alerts that fired in this same run are skipped so they don't get re-enabled and fire twice.
-async function activateTargetAlerts(
-  sentAlertIds: number[],
-  supabase: AdminClient,
-) {
-  if (sentAlertIds.length === 0) return;
+// Starts the next steps: every target of a transition whose source just fired (A -> B starts B).
+// Steps that fired in this same run are skipped so they aren't re-enabled to fire twice.
+// Returns false when it couldn't, so the fired steps stay active and are retried next run.
+async function activateTargetAlerts(firedIds: number[], supabase: AdminClient) {
+  if (firedIds.length === 0) return false;
 
-  const { data: transitions, error: transitionsError } = await supabase
+  const { data: transitions, error } = await supabase
     .from("alert_transitions")
     .select("target_alert_id")
-    .in("source_alert_id", sentAlertIds);
+    .in("source_alert_id", firedIds);
 
-  if (transitionsError) {
-    console.error("Failed to load alert transitions:", transitionsError.message);
-    return;
+  if (error) {
+    console.error("Failed to load alert transitions:", error.message);
+    return false;
   }
 
   const targetIds = [...new Set((transitions ?? []).map((t) => t.target_alert_id as number))].filter(
-    (id) => !sentAlertIds.includes(id),
+    (id) => !firedIds.includes(id),
   );
 
-  if (await updateAlerts(supabase, targetIds, { isActive: true })) {
-    console.log("Activated target alerts:", targetIds);
-  }
+  // A last step has nothing to start.
+  if (targetIds.length === 0) return true;
+
+  const activated = await updateAlerts(supabase, targetIds, { isActive: true });
+  if (activated) console.log("Activated target alerts:", targetIds);
+  return activated;
 }
 
 // Applies `patch` to the given alerts; returns false when there was nothing to update or the update failed.

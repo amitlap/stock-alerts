@@ -67,10 +67,11 @@ export type Alert = NewAlert & {
 const ALERT_COLUMNS =
   "id, created_at, stock, email, price, operator, isActive, description, playbook_id, triggered_at";
 
-// Row-level security makes a disallowed delete match 0 rows instead of failing, so a delete
-// selects what it removed and this turns "nothing removed" into an error.
-function assertDeleted(
+// Row-level security makes a disallowed update or delete match 0 rows instead of failing, so those
+// queries select the rows they changed and this turns "nothing changed" into an error.
+function assertChanged(
   { data, error }: { data: unknown[] | null; error: { message: string } | null },
+  action: "update" | "delete",
   what: string,
   table: string,
 ) {
@@ -78,7 +79,8 @@ function assertDeleted(
     throw new Error(error.message);
   }
   if (!data || data.length === 0) {
-    throw new Error(`The ${what} wasn't deleted — the ${table} table needs a delete policy in Supabase.`);
+    const verb = action === "update" ? "updated" : "deleted";
+    throw new Error(`The ${what} wasn't ${verb} — the ${table} table needs an ${action} policy in Supabase.`);
   }
 }
 
@@ -154,10 +156,21 @@ async function setStepSource(
     .maybeSingle();
   if (existingError) throw new Error(existingError.message);
 
-  const { error } = existing
-    ? await supabase.from("alert_transitions").update({ explanation: row.explanation }).eq("id", existing.id)
-    : await supabase.from("alert_transitions").insert(row);
-  if (error) throw new Error(error.message);
+  if (existing) {
+    assertChanged(
+      await supabase
+        .from("alert_transitions")
+        .update({ explanation: row.explanation })
+        .eq("id", existing.id)
+        .select("id"),
+      "update",
+      "step's link",
+      "alert_transitions",
+    );
+  } else {
+    const { error } = await supabase.from("alert_transitions").insert(row);
+    if (error) throw new Error(error.message);
+  }
 }
 
 // Adds a step to a playbook, optionally starting after an existing step of the same playbook.
@@ -232,7 +245,7 @@ export async function removeAlert(id: number): Promise<void> {
     result = await deleteStep();
   }
 
-  assertDeleted(result, "step", "alerts");
+  assertChanged(result, "delete", "step", "alerts");
   revalidateApp();
 }
 
@@ -341,7 +354,7 @@ export async function getPlaybooksWithSteps(email: string): Promise<PlaybookWith
 // Deleting a playbook also deletes its steps and transitions (on delete cascade).
 export async function removePlaybook(id: number): Promise<void> {
   const supabase = createClient(await cookies());
-  assertDeleted(await supabase.from("playbooks").delete().eq("id", id).select("id"), "playbook", "playbooks");
+  assertChanged(await supabase.from("playbooks").delete().eq("id", id).select("id"), "delete", "playbook", "playbooks");
   revalidateApp();
 }
 

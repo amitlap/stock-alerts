@@ -13,10 +13,10 @@ import {
 } from "@/lib/actions";
 import { useAsyncAction, usePendingId } from "@/lib/hooks";
 import { orderStepsByFlow } from "@/lib/playbookFlow";
-import { formatAlertLabel, formatTimeAgo, getStepStatus, type StockPrice } from "@/lib/stockUtils";
+import { formatAlertLabel, formatTimeAgo, getStepStatus } from "@/lib/stockUtils";
 import StepFlowGraph from "./StepFlowGraph";
 import { SELECTED_STEP_STYLE } from "./stepSelection";
-import TickerChart from "./TickerChart";
+import TradingViewWidget from "./TradingViewWidget";
 import ButtonLink from "./ButtonLink";
 import FormDialog from "./FormDialog";
 import PlaybookProgress, { StepStatusChip } from "./PlaybookProgress";
@@ -127,13 +127,11 @@ export default function PlaybookDetailView({
   playbook,
   linkedAlerts,
   transitions,
-  stocks,
   initialEditStepId,
 }: {
   playbook: Playbook;
   linkedAlerts: Alert[];
   transitions: AlertTransition[];
-  stocks: StockPrice[];
   initialEditStepId?: number;
 }) {
   const router = useRouter();
@@ -157,8 +155,7 @@ export default function PlaybookDetailView({
   const selectedStep = selectedStepId != null ? stepById.get(selectedStepId) ?? null : null;
   // With nothing selected, a new step follows the last one in the flow.
   const defaultSource = selectedStep ?? steps[steps.length - 1] ?? null;
-  // The chart follows the selected step's stock (or a chip the user picked), starting on the
-  // stock of the first watching step.
+  // The chart follows the selected step's stock, starting on the stock of the first watching step.
   const chartSymbol =
     chosenSymbol ?? steps.find((step) => getStepStatus(step) === "watching")?.stock ?? steps[0]?.stock;
 
@@ -201,13 +198,20 @@ export default function PlaybookDetailView({
     });
   }
 
+  // Opened via ?edit=<stepId> (e.g. "Edit in playbook"): drop the parameter on close, so a reload
+  // doesn't open the editor again.
+  function closeDialog() {
+    setDialog(null);
+    if (initialEditStepId != null) router.replace(`/playbooks/${playbook.id}`, { scroll: false });
+  }
+
   function handleStepSaved(step: Alert) {
     // A new step becomes the selection, so adding another one continues the chain from it.
     if (dialog?.mode === "add") {
       setSelectedStepId(step.id);
       setChosenSymbol(step.stock);
     }
-    setDialog(null);
+    closeDialog();
     router.refresh();
   }
 
@@ -325,11 +329,8 @@ export default function PlaybookDetailView({
           }}
         />
         {chartSymbol && (
-          <Paper component="section" elevation={1} sx={{ p: 2 }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
-              Price chart
-            </Typography>
-            <TickerChart stocks={stocks} symbol={chartSymbol} onSymbolChange={setChosenSymbol} height={420} />
+          <Paper component="section" elevation={1} sx={{ p: 1, height: 480 }} aria-label={`${chartSymbol} price chart`}>
+            <TradingViewWidget ticker={chartSymbol} />
           </Paper>
         )}
       </Stack>
@@ -342,7 +343,7 @@ export default function PlaybookDetailView({
           email={playbook.email}
           steps={steps}
           transitions={transitions}
-          onClose={() => setDialog(null)}
+          onClose={closeDialog}
           onSaved={handleStepSaved}
         />
       )}
