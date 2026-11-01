@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { Resend } from "resend";
 import { getLatestStockPrices } from "@/lib/actions";
+import { isCronRequest } from "@/lib/cronAuth";
+import { escapeHtml, sendEmail } from "@/lib/email";
 import {
   formatAlertCondition,
   formatAlertLabel,
@@ -17,11 +18,9 @@ type AdminClient = ReturnType<typeof createAdminClient>;
 // An active step that matched, with the name of the playbook it belongs to.
 type MatchedAlert = Alert & { playbooks?: { name: string | null } | null };
 
+// Scheduled run (Supabase Cron).
 export async function GET(request: Request) {
-  // Verify that the request comes from our GitHub Action
-  const authorization = request.headers.get("authorization");
-
-  if (authorization !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!isCronRequest(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -68,13 +67,6 @@ async function respond() {
 async function checkStocks() {
   console.log("Checking stocks...");
 
-  const emailKey = process.env.RESEND_API_KEY;
-  const emailFrom = 'alerts@stock-alerts-alpha.com';
-
-  if (!emailKey) {
-    throw new Error("RESEND_API_KEY must be configured");
-  }
-
   // This route is called by a scheduler with no user session, so it needs the service-role
   // client to bypass RLS; otherwise the updates below would silently match 0 rows.
   const supabase = createAdminClient();
@@ -98,7 +90,7 @@ async function checkStocks() {
   console.log("Stocks fulfilling alert conditions:", matchingAlerts.map(formatAlertLabel));
 
   // A step fires once its email is sent, and then the steps after it start watching.
-  const alertEmails = await sendAlertEmails(matchingAlerts, stocks, emailKey, emailFrom);
+  const alertEmails = await sendAlertEmails(matchingAlerts, stocks);
   const firedIds = sentAlertIds(alertEmails);
   const unsentIds = [...claimedIds].filter((id) => !firedIds.includes(id));
   const handedOff = await activateTargetAlerts(firedIds, supabase);
@@ -113,37 +105,29 @@ async function checkStocks() {
 async function sendAlertEmails(
   matchingAlerts: MatchedAlert[],
   stocks: Awaited<ReturnType<typeof getLatestStockPrices>>,
-  emailKey: string,
-  emailFrom: string,
 ) {
   const alertsByEmail = new Map<string, typeof matchingAlerts>();
   for (const alert of matchingAlerts) {
     alertsByEmail.set(alert.email, [...(alertsByEmail.get(alert.email) ?? []), alert]);
   }
 
-  const resend = new Resend(emailKey);
   const results = [];
 
   for (const [email, alertsForEmail] of alertsByEmail) {
     const rows = alertsForEmail
       .map((alert) => {
         const stock = stocks.find((s) => s.symbol === alert.stock);
-        return `<tr><td>${alert.playbooks?.name ?? ""}</td><td>${alert.stock}</td><td>${formatAlertCondition(alert)}</td><td>$${stock?.price?.toFixed(2) ?? "N/A"}</td></tr>`;
+        return `<tr><td>${escapeHtml(alert.playbooks?.name ?? "")}</td><td>${alert.stock}</td><td>${formatAlertCondition(alert)}</td><td>$${stock?.price?.toFixed(2) ?? "N/A"}</td></tr>`;
       })
       .join("");
 
-    const { data, error } = await resend.emails.send({
-      from: emailFrom,
-      to: [email],
-      subject: "A playbook step was triggered",
-      html: `<h1>Playbook step triggered</h1><table><thead><tr><th>Playbook</th><th>Symbol</th><th>Condition</th><th>Current price</th></tr></thead><tbody>${rows}</tbody></table>`,
-    });
+    const error = await sendEmail(
+      email,
+      "A playbook step was triggered",
+      `<h1>Playbook step triggered</h1><table><thead><tr><th>Playbook</th><th>Symbol</th><th>Condition</th><th>Current price</th></tr></thead><tbody>${rows}</tbody></table>`,
+    );
 
-    if (error) {
-      console.error(`Failed to send alert email to ${email}:`, error.message);
-    }
-
-    results.push({ email, alerts: alertsForEmail, data, error: error?.message ?? null });
+    results.push({ email, alerts: alertsForEmail, error });
   }
 
   return results;
