@@ -22,6 +22,8 @@ import {
   NEAR_TRIGGER_PERCENT,
 } from "@/lib/stockUtils";
 import { getMarketValuation } from "@/lib/marketValuation";
+import { getValuationHistory, type ValuationHistory } from "@/lib/shiller";
+import ValuationChart from "@/components/ValuationChart";
 
 export default async function Home() {
   const supabase = createClient(await cookies());
@@ -91,13 +93,20 @@ export default async function Home() {
   };
   const chartStocks = [...stocks].sort((a, b) => watchRank(a.symbol) - watchRank(b.symbol));
 
-  let marketValuation = null;
-  let marketValuationError: string | undefined;
-  try {
-    marketValuation = await getMarketValuation();
-    if (!marketValuation) marketValuationError = "FMP_KEY is not configured.";
-  } catch {
-    marketValuationError = "Unable to fetch market data.";
+  // FMP's live S&P 500 quote, and Shiller's monthly P/E history, loaded side by side.
+  const [valuationResult, historyResult] = await Promise.allSettled([getMarketValuation(), getValuationHistory()]);
+  const marketValuation = valuationResult.status === "fulfilled" ? valuationResult.value : null;
+  const marketValuationError =
+    valuationResult.status === "rejected"
+      ? "Unable to fetch market data."
+      : !marketValuation
+        ? "FMP_KEY is not configured."
+        : undefined;
+  let valuationHistory: ValuationHistory | null = null;
+  if (historyResult.status === "fulfilled") {
+    valuationHistory = historyResult.value;
+  } else {
+    console.error("Failed to load Shiller valuation history:", historyResult.reason);
   }
 
   return (
@@ -167,16 +176,33 @@ export default async function Home() {
           )}
         </Paper>
 
-        <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", md: "minmax(0, 2fr) minmax(0, 1fr)" } }}>
-          {chartStocks.length > 0 && (
+        <Box
+          sx={{
+            display: "grid",
+            gap: 2,
+            alignItems: "start",
+            gridTemplateColumns: { xs: "1fr", md: "minmax(0, 2fr) minmax(0, 1fr)" },
+          }}
+        >
+          <Stack spacing={2} sx={{ minWidth: 0 }}>
+            {chartStocks.length > 0 && (
+              <Paper component="section" elevation={1} sx={{ p: 2.5 }}>
+                <PageHeader section title="Chart" />
+                <TickerChart stocks={chartStocks} />
+              </Paper>
+            )}
             <Paper component="section" elevation={1} sx={{ p: 2.5 }}>
-              <PageHeader section title="Chart" />
-              <TickerChart stocks={chartStocks} />
+              <PageHeader section title="S&P 500 P/E (earnings multiple)" />
+              {valuationHistory ? (
+                <ValuationChart history={valuationHistory} />
+              ) : (
+                <Typography color="text.secondary">S&amp;P 500 P/E history is unavailable right now.</Typography>
+              )}
             </Paper>
-          )}
-          <Paper component="section" elevation={1} sx={{ p: 2.5, gridColumn: chartStocks.length > 0 ? undefined : "1 / -1" }}>
+          </Stack>
+          <Paper component="section" elevation={1} sx={{ p: 2.5 }}>
             <PageHeader section title="S&P 500 Snapshot" />
-            <MarketValuationTable data={marketValuation} error={marketValuationError} />
+            <MarketValuationTable data={marketValuation} error={marketValuationError} history={valuationHistory} />
           </Paper>
         </Box>
       </main>

@@ -7,6 +7,8 @@ import {
   Typography,
 } from "@mui/material";
 import type { MarketValuation } from "@/lib/marketValuation";
+import type { ValuationHistory } from "@/lib/shiller";
+import { formatMonthYear } from "@/lib/stockUtils";
 
 const NOT_AVAILABLE = "Not available";
 
@@ -22,9 +24,12 @@ function formatPercent(value: number) {
 export default function MarketValuationTable({
   data,
   error,
+  history,
 }: {
   data: MarketValuation | null;
   error?: string;
+  // Shiller's monthly P/E and CAPE, used where FMP has no index-level figure.
+  history?: ValuationHistory | null;
 }) {
   if (error || !data) {
     return (
@@ -34,7 +39,10 @@ export default function MarketValuationTable({
     );
   }
 
-  const earningsYield = data.trailingPE ? (100 / data.trailingPE).toFixed(2) + "%" : null;
+  const shillerPE = history?.pe.at(-1);
+  const shillerCape = history?.cape.at(-1);
+  const trailingPE = data.trailingPE ?? shillerPE?.value ?? null;
+  const earningsYield = trailingPE ? (100 / trailingPE).toFixed(2) + "%" : null;
 
   const rows: Array<{ metric: string; value: string; note?: string }> = [
     { metric: "S&P 500 index value", value: formatPoints(data.price) },
@@ -44,8 +52,13 @@ export default function MarketValuationTable({
     },
     {
       metric: "Trailing P/E",
-      value: data.trailingPE != null ? data.trailingPE.toFixed(2) : NOT_AVAILABLE,
-      note: data.trailingPE == null ? "Not provided for indexes by FMP" : undefined,
+      value: trailingPE != null ? trailingPE.toFixed(2) : NOT_AVAILABLE,
+      note:
+        data.trailingPE != null
+          ? undefined
+          : shillerPE
+            ? `Shiller data, ${formatMonthYear(shillerPE.time)}`
+            : "Not provided for indexes by FMP",
     },
     {
       metric: "Forward P/E",
@@ -54,8 +67,8 @@ export default function MarketValuationTable({
     },
     {
       metric: "CAPE / Shiller P/E",
-      value: data.cape != null ? data.cape.toFixed(2) : NOT_AVAILABLE,
-      note: data.cape == null ? "Pending Shiller historical dataset import" : undefined,
+      value: shillerCape ? shillerCape.value.toFixed(2) : NOT_AVAILABLE,
+      note: shillerCape ? `Shiller data, ${formatMonthYear(shillerCape.time)}` : "Shiller data unavailable",
     },
     {
       metric: "Earnings yield",

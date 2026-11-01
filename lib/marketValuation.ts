@@ -26,8 +26,6 @@ export type MarketValuation = {
   trailingPE: number | null;
   eps: number | null;
   asOf: string;
-  // Not sourced from FMP - FMP has no verified index-level CAPE series. Pending a Shiller import.
-  cape: number | null;
 };
 
 export async function getMarketValuation(): Promise<MarketValuation | null> {
@@ -59,6 +57,5 @@ export async function getMarketValuation(): Promise<MarketValuation | null> {
     trailingPE: quote.pe ?? null,
     eps: quote.eps ?? null,
     asOf: new Date(quote.timestamp * 1000).toISOString(),
-    cape: null,
   };
 }

@@ -120,3 +120,8 @@ export function formatTimeAgo(date: string | Date, now = new Date()): string {
   }
   return "just now";
 }
+
+// "2026-10-01" -> "Oct 2026"
+export function formatMonthYear(date: string): string {
+  return new Date(`${date}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
+}
