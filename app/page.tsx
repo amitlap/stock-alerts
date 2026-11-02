@@ -1,5 +1,3 @@
-import { createClient } from "@/utils/supabase/server";
-import { cookies } from "next/headers";
 import { Box, LinearProgress, Paper, Stack, Typography } from "@mui/material";
 import CreatePlaybookCard from "@/components/CreatePlaybookCard";
 import MarketValuationTable from "@/components/MarketValuationTable";
@@ -11,35 +9,25 @@ import TickerChart from "@/components/TickerChart";
 import WatchingSteps, { type WatchingStepItem } from "@/components/WatchingSteps";
 import ButtonLink from "@/components/ButtonLink";
 import PageHeader from "@/components/PageHeader";
-import { getLatestStockPrices, getPlaybooksWithSteps } from "@/lib/actions";
-import {
-  distanceToTrigger,
-  formatAlertLabel,
-  formatTimeAgo,
-  getErrorMessage,
-  getPlaybookProgress,
-  getStepStatus,
-  NEAR_TRIGGER_PERCENT,
-} from "@/lib/stockUtils";
-import { getMarketValuation } from "@/lib/marketValuation";
+import { getPlaybooks, getUser } from "@/lib/data";
+import { getLatestStockPrices } from "@/lib/prices";
+import { formatTimeAgo, getErrorMessage } from "@/lib/format";
+import { distanceToTrigger, formatAlertLabel, getPlaybookProgress, getStepStatus, NEAR_TRIGGER_PERCENT } from "@/lib/steps";
+import { getMarketValuation } from "@/lib/fmp";
 import { getValuationHistory, type ValuationHistory } from "@/lib/shiller";
+import type { PlaybookWithSteps } from "@/lib/types";
 import ValuationChart from "@/components/ValuationChart";
 
 export default async function Home() {
-  const supabase = createClient(await cookies());
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getUser();
 
   // The signed-in user's playbooks, each with its steps.
-  let playbooks: Awaited<ReturnType<typeof getPlaybooksWithSteps>> = [];
+  let playbooks: PlaybookWithSteps[] = [];
   let playbooksError: string | null = null;
-  if (user?.email) {
-    try {
-      playbooks = await getPlaybooksWithSteps(user.email);
-    } catch (error) {
-      playbooksError = getErrorMessage(error);
-    }
+  try {
+    playbooks = await getPlaybooks();
+  } catch (error) {
+    playbooksError = getErrorMessage(error);
   }
 
   const steps = playbooks.flatMap((playbook) =>

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { addPlaybook } from "@/lib/actions";
 import { useAsyncAction } from "@/lib/hooks";
-import { parsePrice } from "@/lib/stockUtils";
+import { parsePrice } from "@/lib/format";
 import { EMPTY_CONDITION } from "./StepFields";
 
 // Form state for creating a playbook with its first step; on success it opens the new playbook.

@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import { MenuItem, TextField } from "@mui/material";
-import { addAlert, updateAlert, type Alert, type AlertTransition } from "@/lib/actions";
+import type { Alert, AlertTransition } from "@/lib/types";
+import { addAlert, updateAlert } from "@/lib/actions";
 import { useAsyncAction } from "@/lib/hooks";
 import { getStepWithDescendants } from "@/lib/playbookFlow";
-import { formatAlertLabel, parsePrice } from "@/lib/stockUtils";
+import { parsePrice } from "@/lib/format";
+import { formatAlertLabel } from "@/lib/steps";
 import { ActiveSwitch, ConditionFields, stepMenuItems, type ConditionDraft } from "./StepFields";
 import FormDialog from "./FormDialog";
 

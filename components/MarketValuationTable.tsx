@@ -6,9 +6,9 @@ import {
   TableRow,
   Typography,
 } from "@mui/material";
-import type { MarketValuation } from "@/lib/marketValuation";
+import type { MarketValuation } from "@/lib/fmp";
 import type { ValuationHistory } from "@/lib/shiller";
-import { formatMonthYear } from "@/lib/stockUtils";
+import { formatMonthYear } from "@/lib/format";
 
 const NOT_AVAILABLE = "Not available";
 

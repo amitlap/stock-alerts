@@ -4,8 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button, Paper, Stack, TextField, Typography } from "@mui/material";
-import { createClient } from "@/utils/supabase/client";
-import { getErrorMessage } from "@/lib/stockUtils";
+import { createClient } from "@/lib/supabase/client";
+import { getErrorMessage } from "@/lib/format";
 
 export default function SignupPage() {
   const router = useRouter();

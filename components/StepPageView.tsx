@@ -6,16 +6,10 @@ import { Box, Chip, Paper, Stack, Typography } from "@mui/material";
 import ButtonLink from "@/components/ButtonLink";
 import StockChart from "@/components/StockChart";
 import { StepStatusChip } from "@/components/PlaybookProgress";
-import type { Alert, AlertTransition, Playbook } from "@/lib/actions";
-import {
-  distanceToTrigger,
-  formatAlertCondition,
-  formatAlertLabel,
-  formatTimeAgo,
-  priceChangeColor,
-  type Candle,
-  type StockPrice,
-} from "@/lib/stockUtils";
+import type { Alert, AlertTransition, Playbook } from "@/lib/types";
+import { formatTimeAgo, priceChangeColor } from "@/lib/format";
+import type { Candle, StockPrice } from "@/lib/types";
+import { distanceToTrigger, formatAlertCondition, formatAlertLabel } from "@/lib/steps";
 
 function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (

@@ -1,12 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import {
-  getAlertsByPlaybook,
-  getHistoricalPrices,
-  getLatestStockPrices,
-  getPlaybookById,
-  getTransitionsByPlaybook,
-} from "@/lib/actions";
+import { getPlaybook } from "@/lib/data";
+import { getHistoricalPrices, getLatestStockPrices } from "@/lib/prices";
 import StepPageView from "@/components/StepPageView";
 
 export default async function StepPage({
@@ -15,19 +10,12 @@ export default async function StepPage({
   params: Promise<{ id: string; stepId: string }>;
 }) {
   const { id, stepId } = await params;
-  const playbook = await getPlaybookById(Number(id));
-  if (!playbook) {
+  const detail = await getPlaybook(Number(id));
+  const step = detail?.steps.find((s) => s.id === Number(stepId));
+  if (!detail || !step) {
     notFound();
   }
-
-  const [steps, transitions] = await Promise.all([
-    getAlertsByPlaybook(playbook.id),
-    getTransitionsByPlaybook(playbook.id),
-  ]);
-  const step = steps.find((s) => s.id === Number(stepId));
-  if (!step) {
-    notFound();
-  }
+  const { playbook, steps, transitions } = detail;
 
   const [[stock], candles] = await Promise.all([
     getLatestStockPrices([step.stock]),

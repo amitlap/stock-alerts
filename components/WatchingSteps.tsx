@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { Box, Chip, LinearProgress, List, ListItemButton, Stack, Typography } from "@mui/material";
-import { formatAlertCondition, NEAR_TRIGGER_PERCENT, priceChangeColor } from "@/lib/stockUtils";
+import { priceChangeColor } from "@/lib/format";
+import { formatAlertCondition, NEAR_TRIGGER_PERCENT } from "@/lib/steps";
 
 export type WatchingStepItem = {
   id: number;

@@ -1,13 +1,8 @@
 "use client";
 
 import { Chip, LinearProgress, Stack, Typography, type ChipProps } from "@mui/material";
-import {
-  getPlaybookProgress,
-  getStepStatus,
-  STEP_STATUS_LABELS,
-  type Alert,
-  type StepStatus,
-} from "@/lib/stockUtils";
+import type { Alert } from "@/lib/types";
+import { getPlaybookProgress, getStepStatus, STEP_STATUS_LABELS, type StepStatus } from "@/lib/steps";
 
 const STEP_STATUS_COLORS: Record<StepStatus, ChipProps["color"]> = {
   waiting: "default",

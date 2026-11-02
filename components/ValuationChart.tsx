@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Box, Stack, ToggleButton, ToggleButtonGroup, Typography } from "@mui/material";
 import { createChart, LineSeries, LineStyle, PriceScaleMode, type IChartApi } from "lightweight-charts";
 import type { ValuationHistory, ValuationPoint } from "@/lib/shiller";
-import { formatMonthYear } from "@/lib/stockUtils";
+import { formatMonthYear } from "@/lib/format";
 
 const SERIES = [
   { key: "pe", label: "Trailing P/E", color: "#2563eb" },

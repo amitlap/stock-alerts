@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Stack, Typography } from "@mui/material";
 import { useAsyncAction } from "@/lib/hooks";
-import { formatAlertLabel, type Alert } from "@/lib/stockUtils";
+import { runStockCheck } from "@/lib/actions";
 
 // Runs the same check as the scheduled job now: fires matching steps, emails, and starts the next ones.
 export default function RunCheckButton() {
@@ -15,13 +15,9 @@ export default function RunCheckButton() {
   async function handleCheck() {
     setResult(null);
     await check.run(async () => {
-      const res = await fetch("/api/cron/stocks", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error ?? `Check failed (${res.status})`);
-      }
-      const fired: Alert[] = data.matchingAlerts ?? [];
-      setResult(fired.length === 0 ? "Nothing fired." : `Fired: ${fired.map(formatAlertLabel).join(", ")}`);
+      const { fired, emailErrors } = await runStockCheck();
+      if (emailErrors.length > 0) throw new Error(`Some emails failed: ${emailErrors.join("; ")}`);
+      setResult(fired.length === 0 ? "Nothing fired." : `Fired: ${fired.join(", ")}`);
       router.refresh();
     });
   }

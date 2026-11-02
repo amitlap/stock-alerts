@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button, Paper, Stack, Typography } from "@mui/material";
-import { createClient } from "@/utils/supabase/client";
+import { createClient } from "@/lib/supabase/client";
 
 export default function UserHeader({ userEmail }: { userEmail: string | null }) {
   const router = useRouter();

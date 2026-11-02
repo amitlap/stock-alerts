@@ -1,15 +1,11 @@
-// Earnings reminders: the business day before a stock reports, every playbook following that stock
-// gets an email. Report dates come fresh from FMP on each run (companies move them), and each
-// reminder sent is recorded in earnings_notifications so it's never sent twice.
-import { createAdminClient } from "@/utils/supabase/admin";
-import { escapeHtml, sendEmail } from "./email";
-
-type FmpEarnings = {
-  symbol: string;
-  date: string; // "YYYY-MM-DD"
-  epsEstimated: number | null;
-  revenueEstimated: number | null;
-};
+// Earnings reminders (Supabase Cron, daily): the business day before a stock reports, every playbook
+// following that stock gets an email. Report dates come fresh from FMP on each run (companies move
+// them), and each reminder sent is recorded in earnings_notifications so it's never sent twice.
+import "server-only";
+import { escapeHtml, sendEmail } from "../email";
+import { getNextEarnings, type EarningsReport } from "../fmp";
+import { createAdminClient, type AdminClient } from "../supabase/admin";
+import { unwrap } from "../supabase/server";
 
 // A playbook following a stock: any of its steps is on that stock.
 type Follower = { playbookId: number; playbookName: string; email: string };
@@ -24,45 +20,24 @@ export type EarningsReminderResult = {
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 // Reminders go out the business day before: Friday's run covers reports on the weekend and Monday.
-export function reminderWindow(now = new Date()) {
+function reminderWindow(now = new Date()) {
   const today = now.toISOString().slice(0, 10);
   const daysAhead = now.getUTCDay() === 5 ? 3 : now.getUTCDay() === 6 ? 2 : 1;
   const until = new Date(now.getTime() + daysAhead * ONE_DAY_MS).toISOString().slice(0, 10);
   return { today, until };
 }
 
-// The next scheduled report after today, or null when FMP has none or doesn't cover the symbol
-// (our plan gets a "premium" text reply instead of a list for ETFs).
-async function getNextEarnings(symbol: string, today: string): Promise<FmpEarnings | null> {
-  const apiKey = process.env.FMP_KEY;
-  if (!apiKey) throw new Error("FMP_KEY must be configured");
-
-  const response = await fetch(
-    `https://financialmodelingprep.com/stable/earnings?symbol=${encodeURIComponent(symbol)}&limit=5&apikey=${apiKey}`,
-    { cache: "no-store" },
-  );
-  if (!response.ok) return null;
-
-  const data: unknown = await response.json().catch(() => null);
-  if (!Array.isArray(data)) return null;
-
-  return (
-    (data as FmpEarnings[])
-      .filter((report) => report.date > today)
-      .sort((a, b) => a.date.localeCompare(b.date))[0] ?? null
-  );
-}
-
 // Every stock in any playbook, with the playbooks that follow it.
-async function getFollowedStocks(supabase: ReturnType<typeof createAdminClient>) {
-  const { data, error } = await supabase
-    .from("alerts")
-    .select("stock, email, playbook_id, playbooks(name)")
-    .overrideTypes<{ stock: string; email: string; playbook_id: number; playbooks: { name: string | null } | null }[]>();
-  if (error) throw new Error(error.message);
+async function getFollowedStocks(supabase: AdminClient) {
+  const steps = unwrap(
+    await supabase
+      .from("alerts")
+      .select("stock, email, playbook_id, playbooks(name)")
+      .overrideTypes<{ stock: string; email: string; playbook_id: number; playbooks: { name: string | null } | null }[]>(),
+  );
 
   const followers = new Map<string, Map<number, Follower>>();
-  for (const step of data ?? []) {
+  for (const step of steps) {
     const byPlaybook = followers.get(step.stock) ?? new Map<number, Follower>();
     byPlaybook.set(step.playbook_id, {
       playbookId: step.playbook_id,
@@ -88,7 +63,7 @@ function formatMoney(value: number | null) {
   return value >= 1e9 ? `$${(value / 1e9).toFixed(2)}B` : value >= 1e6 ? `$${(value / 1e6).toFixed(1)}M` : `$${value.toFixed(2)}`;
 }
 
-function reminderEmail(report: FmpEarnings, follower: Follower, siteUrl: string) {
+function reminderEmail(report: EarningsReport, follower: Follower, siteUrl: string) {
   const when = formatReportDate(report.date);
   const playbook = escapeHtml(follower.playbookName);
   return {
@@ -104,6 +79,7 @@ function reminderEmail(report: FmpEarnings, follower: Follower, siteUrl: string)
   };
 }
 
+// Links in the emails point to `siteUrl` (the deployed site the cron job called).
 export async function sendEarningsReminders(siteUrl: string): Promise<EarningsReminderResult[]> {
   const supabase = createAdminClient();
   const followers = await getFollowedStocks(supabase);

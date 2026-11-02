@@ -1,26 +1,20 @@
-import { createClient } from "@/utils/supabase/server";
-import { cookies } from "next/headers";
 import { Paper, Typography } from "@mui/material";
 import AddPlaybookForm from "@/components/AddPlaybookForm";
 import PageHeader from "@/components/PageHeader";
 import PlaybooksList from "@/components/PlaybooksList";
-import { getPlaybooksWithSteps } from "@/lib/actions";
-import { getErrorMessage } from "@/lib/stockUtils";
+import { getPlaybooks, getUser } from "@/lib/data";
+import type { PlaybookWithSteps } from "@/lib/types";
+import { getErrorMessage } from "@/lib/format";
 
 export default async function PlaybooksPage() {
-  const supabase = createClient(await cookies());
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getUser();
 
-  let playbooks: Awaited<ReturnType<typeof getPlaybooksWithSteps>> = [];
+  let playbooks: PlaybookWithSteps[] = [];
   let error: string | null = null;
-  if (user?.email) {
-    try {
-      playbooks = await getPlaybooksWithSteps(user.email);
-    } catch (err) {
-      error = getErrorMessage(err);
-    }
+  try {
+    playbooks = await getPlaybooks();
+  } catch (err) {
+    error = getErrorMessage(err);
   }
 
   return (

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getAlertsByPlaybook, getPlaybookById, getTransitionsByPlaybook } from "@/lib/actions";
+import { getPlaybook } from "@/lib/data";
 import PlaybookDetailView from "@/components/PlaybookDetailView";
 
 export default async function PlaybookPage({
@@ -12,16 +12,11 @@ export default async function PlaybookPage({
   searchParams: Promise<{ edit?: string }>;
 }) {
   const [{ id }, { edit }] = await Promise.all([params, searchParams]);
-  const playbook = await getPlaybookById(Number(id));
-
-  if (!playbook) {
+  const detail = await getPlaybook(Number(id));
+  if (!detail) {
     notFound();
   }
-
-  const [steps, transitions] = await Promise.all([
-    getAlertsByPlaybook(playbook.id),
-    getTransitionsByPlaybook(playbook.id),
-  ]);
+  const { playbook, steps, transitions } = detail;
 
   return (
     <div className="flex flex-col flex-1 bg-zinc-50 font-sans dark:bg-black">

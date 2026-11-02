@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { Box, Chip, Stack } from "@mui/material";
-import { priceChangeColor, type StockPrice } from "@/lib/stockUtils";
+import { priceChangeColor } from "@/lib/format";
+import type { StockPrice } from "@/lib/types";
 import TradingViewWidget from "./TradingViewWidget";
 
 // A TradingView chart with a chip per followed stock (showing its price) to switch between them.

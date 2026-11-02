@@ -1,7 +1,8 @@
 "use client";
 
 import { FormControlLabel, MenuItem, Stack, Switch, TextField } from "@mui/material";
-import { ALERT_OPERATORS, formatAlertLabel, type Alert, type AlertOperator } from "@/lib/stockUtils";
+import { ALERT_OPERATORS, type Alert, type AlertOperator } from "@/lib/types";
+import { formatAlertLabel } from "@/lib/steps";
 
 export type ConditionDraft = { stock: string; operator: AlertOperator; price: string };
 

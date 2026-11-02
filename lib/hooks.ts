@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { getErrorMessage } from "./stockUtils";
+import { getErrorMessage } from "./format";
 
 // Tracks one async action's pending state and error message. `run` resolves to whether it succeeded.
 export function useAsyncAction() {

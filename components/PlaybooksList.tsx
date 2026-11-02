@@ -3,9 +3,10 @@
 import { useRouter } from "next/navigation";
 import { Typography } from "@mui/material";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
-import { removePlaybook, type PlaybookWithSteps } from "@/lib/actions";
+import type { PlaybookWithSteps } from "@/lib/types";
+import { removePlaybook } from "@/lib/actions";
 import { usePendingId } from "@/lib/hooks";
-import { formatAlertLabel, getStepStatus } from "@/lib/stockUtils";
+import { formatAlertLabel, getStepStatus } from "@/lib/steps";
 import PlaybookProgress from "./PlaybookProgress";
 import RowActionButton from "./RowActionButton";
 

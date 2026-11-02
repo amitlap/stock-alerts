@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { CandlestickSeries, createChart } from "lightweight-charts";
-import type { Candle } from "@/lib/stockUtils";
+import type { Candle } from "@/lib/types";
 
 export default function StockChart({ data }: { data: Candle[] }) {
   const container = useRef<HTMLDivElement>(null);
