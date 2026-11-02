@@ -1,7 +1,7 @@
 // The stock check (Supabase Cron every 5 minutes, or "Run check now"): every watching step whose
 // condition the live price meets fires, which means:
 //   1. claim it (mark it done) so an overlapping run can't fire it too,
-//   2. email it, grouped into one email per address,
+//   2. email it, grouped into one email per address (and send it to that address's Telegram, if linked),
 //   3. start the steps that follow it (A -> B starts B),
 //   4. give back what didn't make it, so the next run retries it.
 import "server-only";
@@ -10,6 +10,7 @@ import { getLatestStockPrices } from "@/backend/prices";
 import { formatAlertCondition, formatAlertLabel, meetsCondition } from "@/shared/steps";
 import { createAdminClient, type AdminClient } from "@/backend/supabase/admin";
 import { unwrap } from "@/backend/supabase/server";
+import { getTelegramChatIds, sendTelegram } from "@/backend/telegram";
 import type { Alert } from "@/shared/types";
 
 // A watching step, with the name of the playbook it belongs to.
@@ -37,7 +38,7 @@ export async function runStockCheck() {
   });
 
   const claimed = await claimSteps(supabase, hits);
-  const { sent, errors } = await emailSteps(claimed, prices);
+  const { sent, errors } = await emailSteps(supabase, claimed, prices);
   const sentIds = sent.map((step) => step.id);
   const started = await startNextSteps(supabase, sentIds);
   // Without the next steps started, the playbook would stall, so fire everything again next run.
@@ -68,9 +69,15 @@ async function claimSteps(supabase: AdminClient, steps: WatchingStep[]) {
 }
 
 // Sends one email per address listing its steps; returns the steps that went out and the failures.
-async function emailSteps(steps: WatchingStep[], prices: Map<string, number | undefined>) {
+// A step counts as sent once its email is, and only then does it also go to Telegram: a step whose
+// email failed is retried next run, which would send its Telegram message twice.
+async function emailSteps(supabase: AdminClient, steps: WatchingStep[], prices: Map<string, number | undefined>) {
   const byEmail = new Map<string, WatchingStep[]>();
   for (const step of steps) byEmail.set(step.email, [...(byEmail.get(step.email) ?? []), step]);
+  const chatIds = await getTelegramChatIds(supabase, [...byEmail.keys()]).catch((err) => {
+    console.error("Failed to load Telegram links:", err);
+    return new Map<string, number>();
+  });
 
   const sent: WatchingStep[] = [];
   const errors: string[] = [];
@@ -89,8 +96,21 @@ async function emailSteps(steps: WatchingStep[], prices: Map<string, number | un
       `<h1>Playbook step triggered</h1><table><thead><tr><th>Playbook</th><th>Symbol</th><th>Condition</th><th>Current price</th></tr></thead><tbody>${rows}</tbody></table>`,
     );
 
-    if (error) errors.push(`${email}: ${error}`);
-    else sent.push(...stepsForEmail);
+    if (error) {
+      errors.push(`${email}: ${error}`);
+      continue;
+    }
+    sent.push(...stepsForEmail);
+
+    const chatId = chatIds.get(email);
+    if (chatId != null) {
+      const lines = stepsForEmail.map(
+        (step) =>
+          `• <b>${step.stock}</b> ${formatAlertCondition(step)}, now $${prices.get(step.stock)?.toFixed(2) ?? "N/A"} (${escapeHtml(step.playbooks?.name ?? "")})`,
+      );
+      const telegramError = await sendTelegram(chatId, `<b>Playbook step triggered</b>\n${lines.join("\n")}`);
+      if (telegramError) errors.push(`${email} (Telegram): ${telegramError}`);
+    }
   }
 
   return { sent, errors };

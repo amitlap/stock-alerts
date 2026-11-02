@@ -5,7 +5,9 @@
 import { revalidatePath } from "next/cache";
 import { ALERT_COLUMNS, getUser, PLAYBOOK_COLUMNS } from "@/backend/data";
 import { runStockCheck as runStockCheckJob } from "@/backend/jobs/stockCheck";
+import { createAdminClient } from "@/backend/supabase/admin";
 import { createClient, unwrap, unwrapChanged } from "@/backend/supabase/server";
+import { createTelegramLink } from "@/backend/telegram";
 import {
   ALERT_OPERATORS,
   type Alert,
@@ -188,4 +190,25 @@ export async function runStockCheck(): Promise<{ fired: string[]; emailErrors: s
   const result = await runStockCheckJob();
   revalidateApp();
   return result;
+}
+
+// "Connect Telegram": returns the t.me link that opens the bot and links the chat to this login.
+// Only the server writes telegram_links, so it uses the service-role client for the signed-in user's row.
+export async function connectTelegram(): Promise<string> {
+  const user = await getUser();
+  if (!user?.email) throw new Error("Unauthorized");
+  return createTelegramLink(createAdminClient(), user.email);
+}
+
+export async function disconnectTelegram(): Promise<void> {
+  const user = await getUser();
+  if (!user?.email) throw new Error("Unauthorized");
+
+  unwrap(
+    await createAdminClient()
+      .from("telegram_links")
+      .update({ chat_id: null, linked_at: null })
+      .eq("email", user.email),
+  );
+  revalidateApp();
 }

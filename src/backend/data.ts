@@ -31,6 +31,13 @@ export async function getPlaybooks(): Promise<PlaybookWithSteps[]> {
   return rows ?? [];
 }
 
+// Whether the signed-in user has a Telegram chat linked.
+export async function isTelegramLinked(): Promise<boolean> {
+  const supabase = await createClient();
+  const link = unwrap(await supabase.from("telegram_links").select("chat_id").maybeSingle<{ chat_id: number | null }>());
+  return link?.chat_id != null;
+}
+
 export type PlaybookDetail = { playbook: Playbook; steps: Alert[]; transitions: AlertTransition[] };
 
 // One playbook with its steps (oldest first) and the transitions between them; null if it isn't the user's.

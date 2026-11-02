@@ -4,8 +4,8 @@ import { type NextRequest, NextResponse } from "next/server";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
-// Pages anyone can open; /api/cron checks its own bearer token instead of a session.
-const PUBLIC_PATHS = ["/login", "/signup", "/api/cron"];
+// Pages anyone can open; /api/cron and /api/telegram check their own secret instead of a session.
+const PUBLIC_PATHS = ["/login", "/signup", "/api/cron", "/api/telegram"];
 
 // Runs on every request: refreshes the session cookie and sends logged-out visitors to /login.
 export async function updateSession(request: NextRequest) {

@@ -1,11 +1,12 @@
 // Earnings reminders (Supabase Cron, daily): the business day before a stock reports, every playbook
-// following that stock gets an email. Report dates come fresh from FMP on each run (companies move
+// following that stock gets an email (and a Telegram message, if that login linked one). Report dates come fresh from FMP on each run (companies move
 // them), and each reminder sent is recorded in earnings_notifications so it's never sent twice.
 import "server-only";
 import { escapeHtml, sendEmail } from "@/backend/email";
 import { getNextEarnings, type EarningsReport } from "@/backend/fmp";
 import { createAdminClient, type AdminClient } from "@/backend/supabase/admin";
 import { unwrap } from "@/backend/supabase/server";
+import { getTelegramChatIds, sendTelegram } from "@/backend/telegram";
 
 // A playbook following a stock: any of its steps is on that stock.
 type Follower = { playbookId: number; playbookName: string; email: string };
@@ -79,11 +80,25 @@ function reminderEmail(report: EarningsReport, follower: Follower, siteUrl: stri
   };
 }
 
+function reminderTelegram(report: EarningsReport, follower: Follower, siteUrl: string) {
+  return (
+    `<b>${report.symbol} reports earnings ${formatReportDate(report.date)}</b>\n` +
+    `In your playbook <a href="${siteUrl}/playbooks/${follower.playbookId}">${escapeHtml(follower.playbookName)}</a>\n` +
+    `EPS estimate: ${report.epsEstimated != null ? `$${report.epsEstimated.toFixed(2)}` : "N/A"}\n` +
+    `Revenue estimate: ${formatMoney(report.revenueEstimated)}`
+  );
+}
+
 // Links in the emails point to `siteUrl` (the deployed site the cron job called).
 export async function sendEarningsReminders(siteUrl: string): Promise<EarningsReminderResult[]> {
   const supabase = createAdminClient();
   const followers = await getFollowedStocks(supabase);
   const { today, until } = reminderWindow();
+  const emails = [...new Set([...followers.values()].flatMap((playbooks) => [...playbooks.values()].map((f) => f.email)))];
+  const chatIds = await getTelegramChatIds(supabase, emails).catch((err) => {
+    console.error("Failed to load Telegram links:", err);
+    return new Map<string, number>();
+  });
   const results: EarningsReminderResult[] = [];
 
   for (const [symbol, playbooks] of followers) {
@@ -112,6 +127,8 @@ export async function sendEarningsReminders(siteUrl: string): Promise<EarningsRe
         result.failed++;
       } else {
         result.sent++;
+        const chatId = chatIds.get(follower.email);
+        if (chatId != null) await sendTelegram(chatId, reminderTelegram(report, follower, siteUrl));
       }
     }
   }

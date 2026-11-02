@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { AppRouterCacheProvider } from "@mui/material-nextjs/v16-appRouter";
 import { ThemeProvider } from "@mui/material/styles";
 import theme from "@/frontend/theme";
-import { getUser } from "@/backend/data";
+import { getUser, isTelegramLinked } from "@/backend/data";
 import UserHeader from "@/frontend/components/UserHeader";
 import "./globals.css";
 
@@ -24,6 +24,7 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const user = await getUser();
+  const telegramLinked = user ? await isTelegramLinked().catch(() => false) : false;
 
   return (
     <html
@@ -34,7 +35,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <AppRouterCacheProvider>
           <ThemeProvider theme={theme}>
             <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-              <UserHeader userEmail={user?.email ?? null} />
+              <UserHeader userEmail={user?.email ?? null} telegramLinked={telegramLinked} />
             </div>
             {children}
           </ThemeProvider>

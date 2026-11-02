@@ -5,8 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button, Paper, Stack, Typography } from "@mui/material";
 import { createClient } from "@/frontend/supabase";
+import TelegramButton from "@/frontend/components/TelegramButton";
 
-export default function UserHeader({ userEmail }: { userEmail: string | null }) {
+export default function UserHeader({ userEmail, telegramLinked }: { userEmail: string | null; telegramLinked: boolean }) {
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
 
@@ -37,9 +38,12 @@ export default function UserHeader({ userEmail }: { userEmail: string | null }) 
           </Link>
         </Stack>
         {userEmail && (
-          <Button size="small" onClick={handleLogout} disabled={loggingOut}>
-            {loggingOut ? "Logging out..." : "Log out"}
-          </Button>
+          <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+            <TelegramButton linked={telegramLinked} />
+            <Button size="small" onClick={handleLogout} disabled={loggingOut}>
+              {loggingOut ? "Logging out..." : "Log out"}
+            </Button>
+          </Stack>
         )}
       </Stack>
     </Paper>
