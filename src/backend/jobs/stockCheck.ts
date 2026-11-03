@@ -106,7 +106,7 @@ async function emailSteps(supabase: AdminClient, steps: WatchingStep[], prices: 
     if (chatId != null) {
       const lines = stepsForEmail.map(
         (step) =>
-          `• <b>${step.stock}</b> ${formatAlertCondition(step)}, now $${prices.get(step.stock)?.toFixed(2) ?? "N/A"} (${escapeHtml(step.playbooks?.name ?? "")})`,
+          `• <b>${step.stock}</b> ${escapeHtml(formatAlertCondition(step))}, now $${prices.get(step.stock)?.toFixed(2) ?? "N/A"} (${escapeHtml(step.playbooks?.name ?? "")})`,
       );
       const telegramError = await sendTelegram(chatId, `<b>Playbook step triggered</b>\n${lines.join("\n")}`);
       if (telegramError) errors.push(`${email} (Telegram): ${telegramError}`);
