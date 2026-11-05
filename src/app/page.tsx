@@ -1,5 +1,4 @@
 import { Box, LinearProgress, Paper, Stack, Typography } from "@mui/material";
-import CreatePlaybookCard from "@/frontend/components/CreatePlaybookCard";
 import MarketValuationTable from "@/frontend/components/MarketValuationTable";
 import PlaybooksList from "@/frontend/components/PlaybooksList";
 import RecentFires, { type RecentFireItem } from "@/frontend/components/RecentFires";
@@ -9,7 +8,7 @@ import TickerChart from "@/frontend/components/TickerChart";
 import WatchingSteps, { type WatchingStepItem } from "@/frontend/components/WatchingSteps";
 import ButtonLink from "@/frontend/components/ButtonLink";
 import PageHeader from "@/frontend/components/PageHeader";
-import { getPlaybooks, getUser } from "@/backend/data";
+import { getPlaybooks } from "@/backend/data";
 import { getLatestStockPrices } from "@/backend/prices";
 import { formatTimeAgo, getErrorMessage } from "@/shared/format";
 import { distanceToTrigger, formatAlertLabel, getPlaybookProgress, getStepStatus, NEAR_TRIGGER_PERCENT } from "@/shared/steps";
@@ -19,8 +18,6 @@ import type { PlaybookWithSteps, ValuationHistory } from "@/shared/types";
 import ValuationChart from "@/frontend/components/ValuationChart";
 
 export default async function Home() {
-  const user = await getUser();
-
   // The signed-in user's playbooks, each with its steps.
   let playbooks: PlaybookWithSteps[] = [];
   let playbooksError: string | null = null;
@@ -100,8 +97,6 @@ export default async function Home() {
   return (
     <div className="flex flex-col flex-1 bg-zinc-50 font-sans dark:bg-black">
       <main className="flex flex-col w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 gap-3">
-        {user?.email && <CreatePlaybookCard userEmail={user.email} isFirst={playbooks.length === 0} />}
-
         {playbooksError && <Typography color="error">Failed to load playbooks: {playbooksError}</Typography>}
 
         <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
@@ -154,11 +149,11 @@ export default async function Home() {
         <Paper component="section" elevation={1} sx={{ p: 2.5 }}>
           <PageHeader section title="My Playbooks">
             <ButtonLink href="/playbooks" size="small">
-              View all ({playbooks.length})
+              {playbooks.length === 0 ? "Create a playbook" : `View all (${playbooks.length})`}
             </ButtonLink>
           </PageHeader>
           {playbooks.length === 0 ? (
-            <Typography color="text.secondary">No playbooks yet — create one above.</Typography>
+            <Typography color="text.secondary">No playbooks yet — create one on the Playbooks page.</Typography>
           ) : (
             <PlaybooksList playbooks={playbooks.slice(0, 5)} />
           )}

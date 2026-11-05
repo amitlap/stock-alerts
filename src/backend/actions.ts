@@ -5,15 +5,16 @@
 import { revalidatePath } from "next/cache";
 import { ALERT_COLUMNS, getUser, isTelegramLinked, PLAYBOOK_COLUMNS } from "@/backend/data";
 import { runStockCheck as runStockCheckJob } from "@/backend/jobs/stockCheck";
+import { getLatestStockPrices } from "@/backend/prices";
 import { createAdminClient } from "@/backend/supabase/admin";
 import { createClient, unwrap, unwrapChanged } from "@/backend/supabase/server";
 import { createTelegramLink } from "@/backend/telegram";
 import {
   ALERT_OPERATORS,
   type Alert,
-  type FirstStep,
   type NewAlert,
   type NewPlaybook,
+  type PlannedStep,
   type Playbook,
   type StepSource,
 } from "@/shared/types";
@@ -96,23 +97,53 @@ async function setStepSource(supabase: SupabaseClient, playbookId: number, stepI
   }
 }
 
-// Creates a playbook together with its first, active step.
-export async function addPlaybook(playbook: NewPlaybook, firstStep: FirstStep): Promise<Playbook> {
+// A playbook made from a template can't have more steps than this.
+const MAX_NEW_PLAYBOOK_STEPS = 20;
+
+// Creates a playbook with its steps chained in order: the first watches now, and each later step
+// waits for the one before it to fire.
+export async function addPlaybook(playbook: NewPlaybook, steps: PlannedStep[]): Promise<Playbook> {
+  if (steps.length === 0 || steps.length > MAX_NEW_PLAYBOOK_STEPS) {
+    throw new Error(`A new playbook needs 1 to ${MAX_NEW_PLAYBOOK_STEPS} steps`);
+  }
   const fields = toPlaybookFields(playbook);
-  const stepFields = toAlertFields({ ...firstStep, isActive: true });
+  const stepFields = steps.map((step, i) => toAlertFields({ ...step, isActive: i === 0 }));
 
   const supabase = await createClient();
   const created = unwrap(await supabase.from("playbooks").insert(fields).select(PLAYBOOK_COLUMNS).single<Playbook>());
 
-  const { error } = await supabase.from("alerts").insert({ ...stepFields, playbook_id: created.id });
-  if (error) {
-    // Don't leave a playbook with no steps behind.
+  try {
+    // Inserted rows come back in the order they were sent.
+    const inserted = unwrap(
+      await supabase
+        .from("alerts")
+        .insert(stepFields.map((step) => ({ ...step, playbook_id: created.id })))
+        .select("id"),
+    );
+    const links = inserted.slice(1).map((step, i) => ({
+      playbook_id: created.id,
+      source_alert_id: inserted[i].id,
+      target_alert_id: step.id,
+      explanation: steps[i + 1].explanation?.trim() || null,
+    }));
+    if (links.length > 0) unwrap(await supabase.from("alert_transitions").insert(links));
+  } catch (err) {
+    // Don't leave a half-made playbook behind (deleting it deletes its steps and links).
     await supabase.from("playbooks").delete().eq("id", created.id);
-    throw new Error(error.message);
+    throw err;
   }
 
   revalidateApp();
   return created;
+}
+
+// The live price of one stock, for "use current price" in the new-playbook form; null if unknown.
+export async function getStockPrice(symbol: string): Promise<number | null> {
+  if (!(await getUser())) throw new Error("Unauthorized");
+  if (!symbol.trim()) return null;
+
+  const [quote] = await getLatestStockPrices([symbol.trim().toUpperCase()]);
+  return quote?.price ?? null;
 }
 
 export async function updatePlaybook(id: number, playbook: NewPlaybook): Promise<Playbook> {

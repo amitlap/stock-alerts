@@ -41,6 +41,12 @@ export function getPlaybookProgress(steps: StepState[]) {
   return { ...counts, total: steps.length };
 }
 
+// The trigger prices of a step-up ladder: each `percent` above the one before, starting from `start`
+// (so the first is already `percent` above it), rounded to cents.
+export function stepUpPrices(start: number, count: number, percent: number): number[] {
+  return Array.from({ length: count }, (_, i) => Math.round(start * (1 + percent / 100) ** (i + 1) * 100) / 100);
+}
+
 // Steps within this % of their trigger price count as "near trigger" on the dashboard.
 export const NEAR_TRIGGER_PERCENT = 2;
 
