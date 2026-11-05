@@ -19,7 +19,6 @@ export type NewAlert = {
   stock: string;
   price: number;
   operator: AlertOperator;
-  email: string;
   isActive: boolean;
   description?: string | null;
   playbook_id: number;
@@ -39,7 +38,6 @@ export type AlertTransition = {
   playbook_id: number;
   source_alert_id: number;
   target_alert_id: number;
-  condition: string | null;
   explanation: string | null;
 };
 

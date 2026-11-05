@@ -33,8 +33,8 @@ async function getFollowedStocks(supabase: AdminClient) {
   const steps = unwrap(
     await supabase
       .from("alerts")
-      .select("stock, email, playbook_id, playbooks(name)")
-      .overrideTypes<{ stock: string; email: string; playbook_id: number; playbooks: { name: string | null } | null }[]>(),
+      .select("stock, playbook_id, playbooks(name, email)")
+      .overrideTypes<{ stock: string; playbook_id: number; playbooks: { name: string; email: string } }[]>(),
   );
 
   const followers = new Map<string, Map<number, Follower>>();
@@ -42,8 +42,8 @@ async function getFollowedStocks(supabase: AdminClient) {
     const byPlaybook = followers.get(step.stock) ?? new Map<number, Follower>();
     byPlaybook.set(step.playbook_id, {
       playbookId: step.playbook_id,
-      playbookName: step.playbooks?.name || `Playbook #${step.playbook_id}`,
-      email: step.email,
+      playbookName: step.playbooks.name || `Playbook #${step.playbook_id}`,
+      email: step.playbooks.email,
     });
     followers.set(step.stock, byPlaybook);
   }

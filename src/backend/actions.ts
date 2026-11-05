@@ -3,7 +3,7 @@
 // Every change the UI makes. Each runs as the signed-in user, so row-level security keeps it to
 // their own playbooks, and then refreshes every page (they all show the same data).
 import { revalidatePath } from "next/cache";
-import { ALERT_COLUMNS, getUser, PLAYBOOK_COLUMNS } from "@/backend/data";
+import { ALERT_COLUMNS, getUser, isTelegramLinked, PLAYBOOK_COLUMNS } from "@/backend/data";
 import { runStockCheck as runStockCheckJob } from "@/backend/jobs/stockCheck";
 import { createAdminClient } from "@/backend/supabase/admin";
 import { createClient, unwrap, unwrapChanged } from "@/backend/supabase/server";
@@ -39,8 +39,8 @@ function toPlaybookFields(playbook: NewPlaybook) {
 
 // Validates a step and normalizes the fields a user can edit.
 function toAlertFields(alert: Omit<NewAlert, "playbook_id">) {
-  if (!alert.stock.trim() || !alert.email.trim()) {
-    throw new Error("Stock and email are required");
+  if (!alert.stock.trim()) {
+    throw new Error("Stock is required");
   }
   if (!Number.isFinite(alert.price)) {
     throw new Error("Price must be a number");
@@ -53,7 +53,6 @@ function toAlertFields(alert: Omit<NewAlert, "playbook_id">) {
     stock: alert.stock.trim().toUpperCase(),
     price: alert.price,
     operator: alert.operator,
-    email: alert.email.trim(),
     isActive: alert.isActive,
     description: alert.description?.trim() || null,
   };
@@ -100,7 +99,7 @@ async function setStepSource(supabase: SupabaseClient, playbookId: number, stepI
 // Creates a playbook together with its first, active step.
 export async function addPlaybook(playbook: NewPlaybook, firstStep: FirstStep): Promise<Playbook> {
   const fields = toPlaybookFields(playbook);
-  const stepFields = toAlertFields({ ...firstStep, email: fields.email, isActive: true });
+  const stepFields = toAlertFields({ ...firstStep, isActive: true });
 
   const supabase = await createClient();
   const created = unwrap(await supabase.from("playbooks").insert(fields).select(PLAYBOOK_COLUMNS).single<Playbook>());
@@ -198,6 +197,11 @@ export async function connectTelegram(): Promise<string> {
   const user = await getUser();
   if (!user?.email) throw new Error("Unauthorized");
   return createTelegramLink(createAdminClient(), user.email);
+}
+
+// Polled by the Connect Telegram button while it waits for the user to press Start in the bot.
+export async function checkTelegramLinked(): Promise<boolean> {
+  return isTelegramLinked();
 }
 
 export async function disconnectTelegram(): Promise<void> {

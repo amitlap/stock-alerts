@@ -23,7 +23,6 @@ export type StepDialogTarget =
 export default function StepDialog({
   target,
   playbookId,
-  email,
   steps,
   transitions,
   onClose,
@@ -31,7 +30,6 @@ export default function StepDialog({
 }: {
   target: StepDialogTarget;
   playbookId: number;
-  email: string;
   steps: Alert[];
   transitions: AlertTransition[];
   onClose: () => void;
@@ -71,7 +69,6 @@ export default function StepDialog({
       stock: condition.stock,
       operator: condition.operator,
       price,
-      email,
       isActive,
       description,
       playbook_id: playbookId,

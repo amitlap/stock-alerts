@@ -13,9 +13,9 @@ import { unwrap } from "@/backend/supabase/server";
 import { getTelegramChatIds, sendTelegram } from "@/backend/telegram";
 import type { Alert } from "@/shared/types";
 
-// A watching step, with the name of the playbook it belongs to.
-type WatchingStep = Pick<Alert, "id" | "stock" | "email" | "price" | "operator"> & {
-  playbooks: { name: string | null } | null;
+// A watching step, with the name and email of the playbook it belongs to.
+type WatchingStep = Pick<Alert, "id" | "stock" | "price" | "operator"> & {
+  playbooks: { name: string; email: string };
 };
 
 export async function runStockCheck() {
@@ -24,7 +24,7 @@ export async function runStockCheck() {
   const watching = unwrap(
     await supabase
       .from("alerts")
-      .select("id, stock, email, price, operator, playbooks(name)")
+      .select("id, stock, price, operator, playbooks(name, email)")
       .eq("isActive", true)
       // A step belongs to one playbook, so the join is a single object, not the array Supabase assumes.
       .overrideTypes<WatchingStep[], { merge: false }>(),
@@ -73,7 +73,10 @@ async function claimSteps(supabase: AdminClient, steps: WatchingStep[]) {
 // email failed is retried next run, which would send its Telegram message twice.
 async function emailSteps(supabase: AdminClient, steps: WatchingStep[], prices: Map<string, number | undefined>) {
   const byEmail = new Map<string, WatchingStep[]>();
-  for (const step of steps) byEmail.set(step.email, [...(byEmail.get(step.email) ?? []), step]);
+  for (const step of steps) {
+    const email = step.playbooks.email;
+    byEmail.set(email, [...(byEmail.get(email) ?? []), step]);
+  }
   const chatIds = await getTelegramChatIds(supabase, [...byEmail.keys()]).catch((err) => {
     console.error("Failed to load Telegram links:", err);
     return new Map<string, number>();
@@ -86,7 +89,7 @@ async function emailSteps(supabase: AdminClient, steps: WatchingStep[], prices: 
     const rows = stepsForEmail
       .map(
         (step) =>
-          `<tr><td>${escapeHtml(step.playbooks?.name ?? "")}</td><td>${step.stock}</td><td>${formatAlertCondition(step)}</td><td>$${prices.get(step.stock)?.toFixed(2) ?? "N/A"}</td></tr>`,
+          `<tr><td>${escapeHtml(step.playbooks.name)}</td><td>${step.stock}</td><td>${formatAlertCondition(step)}</td><td>$${prices.get(step.stock)?.toFixed(2) ?? "N/A"}</td></tr>`,
       )
       .join("");
 
@@ -106,7 +109,7 @@ async function emailSteps(supabase: AdminClient, steps: WatchingStep[], prices: 
     if (chatId != null) {
       const lines = stepsForEmail.map(
         (step) =>
-          `• <b>${step.stock}</b> ${escapeHtml(formatAlertCondition(step))}, now $${prices.get(step.stock)?.toFixed(2) ?? "N/A"} (${escapeHtml(step.playbooks?.name ?? "")})`,
+          `• <b>${step.stock}</b> ${escapeHtml(formatAlertCondition(step))}, now $${prices.get(step.stock)?.toFixed(2) ?? "N/A"} (${escapeHtml(step.playbooks.name)})`,
       );
       const telegramError = await sendTelegram(chatId, `<b>Playbook step triggered</b>\n${lines.join("\n")}`);
       if (telegramError) errors.push(`${email} (Telegram): ${telegramError}`);

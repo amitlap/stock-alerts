@@ -6,8 +6,8 @@ import type { Alert, AlertTransition, Playbook, PlaybookWithSteps } from "@/shar
 
 export const PLAYBOOK_COLUMNS = "id, created_at, name, description, email";
 export const ALERT_COLUMNS =
-  "id, created_at, stock, email, price, operator, isActive, description, playbook_id, triggered_at";
-const TRANSITION_COLUMNS = "id, created_at, playbook_id, source_alert_id, target_alert_id, condition, explanation";
+  "id, created_at, stock, price, operator, isActive, description, playbook_id, triggered_at";
+const TRANSITION_COLUMNS = "id, created_at, playbook_id, source_alert_id, target_alert_id, explanation";
 
 // Cached per request, so the layout and the page share one lookup.
 export const getUser = cache(async () => {

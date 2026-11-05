@@ -335,7 +335,6 @@ export default function PlaybookDetailView({
           key={dialog.mode === "edit" ? `edit-${dialog.step.id}` : `add-${dialog.sourceStepId}`}
           target={dialog}
           playbookId={playbook.id}
-          email={playbook.email}
           steps={steps}
           transitions={transitions}
           onClose={closeDialog}
