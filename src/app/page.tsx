@@ -8,7 +8,8 @@ import TickerChart from "@/frontend/components/TickerChart";
 import WatchingSteps, { type WatchingStepItem } from "@/frontend/components/WatchingSteps";
 import ButtonLink from "@/frontend/components/ButtonLink";
 import PageHeader from "@/frontend/components/PageHeader";
-import { getPlaybooks } from "@/backend/data";
+import { getPlaybooks, getTelegramMessages } from "@/backend/data";
+import TelegramMessages, { type TelegramMessageItem } from "@/frontend/components/TelegramMessages";
 import { getLatestStockPrices } from "@/backend/prices";
 import { formatTimeAgo, getErrorMessage } from "@/shared/format";
 import { distanceToTrigger, formatAlertLabel, getPlaybookProgress, getStepStatus, NEAR_TRIGGER_PERCENT } from "@/shared/steps";
@@ -70,6 +71,14 @@ export default async function Home() {
       playbookName,
       firedAgo: formatTimeAgo(step.triggered_at!),
     }));
+
+  // A failed load just leaves the panel empty; it isn't worth failing the dashboard over.
+  const telegramMessages: TelegramMessageItem[] = (
+    await getTelegramMessages().catch((error) => {
+      console.error("Failed to load Telegram messages:", error);
+      return [];
+    })
+  ).map((message) => ({ id: message.id, text: message.text, receivedAgo: formatTimeAgo(message.received_at) }));
 
   // Chart stocks in the order their steps are closest to firing; stocks with nothing watching go last.
   const watchRank = (symbol: string) => {
@@ -140,10 +149,16 @@ export default async function Home() {
             </PageHeader>
             <WatchingSteps items={watching} />
           </Paper>
-          <Paper component="section" elevation={1} sx={{ p: 2.5 }}>
-            <PageHeader section title="Recent fires" />
-            <RecentFires items={recentFires} />
-          </Paper>
+          <Stack spacing={2} sx={{ minWidth: 0 }}>
+            <Paper component="section" elevation={1} sx={{ p: 2.5 }}>
+              <PageHeader section title="Recent fires" />
+              <RecentFires items={recentFires} />
+            </Paper>
+            <Paper component="section" elevation={1} sx={{ p: 2.5 }}>
+              <PageHeader section title="Telegram messages" />
+              <TelegramMessages items={telegramMessages} />
+            </Paper>
+          </Stack>
         </Box>
 
         <Paper component="section" elevation={1} sx={{ p: 2.5 }}>

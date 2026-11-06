@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { escapeHtml } from "@/backend/email";
 import { createAdminClient } from "@/backend/supabase/admin";
-import { completeTelegramLink, sendTelegram, unlinkTelegramChat } from "@/backend/telegram";
+import { completeTelegramLink, saveTelegramMessage, sendTelegram, unlinkTelegramChat } from "@/backend/telegram";
 
 // The fields of a Telegram update this bot reads.
 type TelegramUpdate = {
@@ -42,8 +42,12 @@ export async function POST(request: Request) {
   } else if (text === "/stop") {
     await unlinkTelegramChat(supabase, chatId);
     await sendTelegram(chatId, "Disconnected. You won't get alerts here anymore.");
+  } else if (!text) {
+    await sendTelegram(chatId, "I can only read text messages for now.");
+  } else if (await saveTelegramMessage(supabase, chatId, text)) {
+    await sendTelegram(chatId, "Got it ✓ You'll see it in the app.");
   } else {
-    await sendTelegram(chatId, "I only send alerts. To connect, click <b>Connect Telegram</b> in the app.");
+    await sendTelegram(chatId, "To send me messages, first click <b>Connect Telegram</b> in the app.");
   }
 
   // Always 200 for a handled update, or Telegram keeps redelivering it.

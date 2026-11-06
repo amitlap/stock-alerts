@@ -38,6 +38,21 @@ export async function isTelegramLinked(): Promise<boolean> {
   return link?.chat_id != null;
 }
 
+export type TelegramMessage = { id: number; text: string; received_at: string };
+
+// The latest texts the signed-in user sent the Telegram bot, newest first.
+export async function getTelegramMessages(limit = 10): Promise<TelegramMessage[]> {
+  const supabase = await createClient();
+  return unwrap(
+    await supabase
+      .from("telegram_messages")
+      .select("id, text, received_at")
+      .order("received_at", { ascending: false })
+      .limit(limit)
+      .overrideTypes<TelegramMessage[], { merge: false }>(),
+  );
+}
+
 export type PlaybookDetail = { playbook: Playbook; steps: Alert[]; transitions: AlertTransition[] };
 
 // One playbook with its steps (oldest first) and the transitions between them; null if it isn't the user's.
