@@ -155,12 +155,21 @@ async function handleButton(
     }
   } catch (err) {
     console.error("Telegram button failed:", err);
-    result = `Couldn't do that: ${escapeHtml(err instanceof Error ? err.message : String(err))}\n\nSend <b>${label}</b> again to retry.`;
-    await editTelegramMessage(chat.id, botMessageId, result);
+    await showResult(
+      chat.id,
+      botMessageId,
+      `Couldn't do that: ${escapeHtml(err instanceof Error ? err.message : String(err))}\n\nSend <b>${label}</b> again to retry.`,
+    );
     return;
   }
 
-  await editTelegramMessage(chat.id, botMessageId, `${result}\n\nRefresh the app to see it.`);
+  await showResult(chat.id, botMessageId, `${result}\n\nRefresh the app to see it.`);
+}
+
+// Replaces the buttons with the result; if Telegram won't edit that message, sends the result as a new
+// one instead, so a tap never looks like it did nothing.
+async function showResult(chatId: number, botMessageId: number, html: string) {
+  if (await editTelegramMessage(chatId, botMessageId, html)) await sendTelegram(chatId, html);
 }
 
 function truncate(text: string, max: number) {
