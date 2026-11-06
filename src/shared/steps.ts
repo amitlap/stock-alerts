@@ -42,9 +42,16 @@ export function getPlaybookProgress(steps: StepState[]) {
 }
 
 // The trigger prices of a step-up ladder: each `percent` above the one before, starting from `start`
-// (so the first is already `percent` above it), rounded to cents.
+// (so the first is already `percent` above it), floored to whole dollars. A step whose floored price
+// wouldn't be above the one before (a small % on a cheap stock) goes $1 above it instead.
 export function stepUpPrices(start: number, count: number, percent: number): number[] {
-  return Array.from({ length: count }, (_, i) => Math.round(start * (1 + percent / 100) ** (i + 1) * 100) / 100);
+  const prices: number[] = [];
+  for (let i = 1; i <= count; i++) {
+    const price = Math.floor(start * (1 + percent / 100) ** i);
+    const previous = prices.at(-1) ?? Math.floor(start);
+    prices.push(Math.max(price, previous + 1));
+  }
+  return prices;
 }
 
 // Steps within this % of their trigger price count as "near trigger" on the dashboard.

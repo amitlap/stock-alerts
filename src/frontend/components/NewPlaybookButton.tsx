@@ -1,90 +1,88 @@
 "use client";
 
-import { Box, Button, MenuItem, Paper, Stack, TextField, Typography } from "@mui/material";
+import { useState } from "react";
+import { Box, Button, MenuItem, Stack, TextField, Typography } from "@mui/material";
+import FormDialog from "./FormDialog";
 import { ConditionFields } from "./StepFields";
 import { MAX_STEP_UP_STEPS, PLAYBOOK_TEMPLATES, type PlaybookTemplate, useNewPlaybook } from "./useNewPlaybook";
 
 type Draft = ReturnType<typeof useNewPlaybook>;
 
-// The Playbooks page's first panel, the one place playbooks are created: pick a template, fill in its
-// fields, and the new playbook opens.
-export default function CreatePlaybookCard({ userEmail, isFirst }: { userEmail: string; isFirst: boolean }) {
+// "New playbook" on the Playbooks page, the one place playbooks are created: opens a dialog to pick a
+// template and fill in its fields, and the new playbook opens once it's saved.
+export default function NewPlaybookButton({ userEmail }: { userEmail: string }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <Button variant="contained" onClick={() => setOpen(true)}>
+        New playbook
+      </Button>
+      {/* Mounted only while open, so each time it opens with an empty form. */}
+      {open && <NewPlaybookDialog userEmail={userEmail} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+function NewPlaybookDialog({ userEmail, onClose }: { userEmail: string; onClose: () => void }) {
   const draft = useNewPlaybook(userEmail);
   const template = PLAYBOOK_TEMPLATES.find((t) => t.value === draft.template)!;
 
   return (
-    <Paper component="section" elevation={1} sx={{ p: 3, borderTop: 4, borderColor: "primary.main" }}>
-      <Typography variant="h6" component="h2">
-        {isFirst ? "Create your first playbook" : "New playbook"}
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Pick a type and fill in its fields. You can change or add steps on the next page.
-      </Typography>
-      <Stack
-        component="form"
-        spacing={2}
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (draft.canSave) draft.create();
-        }}
-        sx={{ maxWidth: 640 }}
+    <FormDialog
+      open
+      title="New playbook"
+      onClose={onClose}
+      onSave={draft.create}
+      saving={draft.save.pending}
+      canSave={draft.canSave}
+      error={draft.save.error}
+      maxWidth="sm"
+    >
+      <TextField
+        label="Playbook type"
+        size="small"
+        select
+        fullWidth
+        value={draft.template}
+        onChange={(e) => draft.setTemplate(e.target.value as PlaybookTemplate)}
+        helperText={template.hint}
       >
-        <TextField
-          label="Playbook type"
-          size="small"
-          select
-          fullWidth
-          value={draft.template}
-          onChange={(e) => draft.setTemplate(e.target.value as PlaybookTemplate)}
-          helperText={template.hint}
-        >
-          {PLAYBOOK_TEMPLATES.map((t) => (
-            <MenuItem key={t.value} value={t.value}>
-              {t.label}
-            </MenuItem>
-          ))}
-        </TextField>
+        {PLAYBOOK_TEMPLATES.map((t) => (
+          <MenuItem key={t.value} value={t.value}>
+            {t.label}
+          </MenuItem>
+        ))}
+      </TextField>
 
-        {draft.template === "stepUp" ? (
-          <StepUpFields draft={draft} />
-        ) : (
-          <Stack spacing={1}>
-            {draft.template === "custom" && <Typography variant="subtitle2">First step — start watching when</Typography>}
-            <ConditionFields value={draft.condition} onChange={draft.setCondition} />
-          </Stack>
-        )}
+      {draft.template === "stepUp" ? (
+        <StepUpFields draft={draft} />
+      ) : (
+        <Stack spacing={1}>
+          {draft.template === "custom" && <Typography variant="subtitle2">First step — start watching when</Typography>}
+          <ConditionFields value={draft.condition} onChange={draft.setCondition} />
+        </Stack>
+      )}
 
-        <TextField
-          label={draft.template === "custom" ? "Playbook name" : "Playbook name (optional)"}
-          placeholder={draft.defaultName || "e.g. QQQ step-up buying"}
-          slotProps={{ inputLabel: { shrink: true } }}
-          size="small"
-          fullWidth
-          value={draft.name}
-          onChange={(e) => draft.setName(e.target.value)}
-        />
-        <TextField
-          label="Description (optional)"
-          size="small"
-          fullWidth
-          multiline
-          minRows={2}
-          value={draft.description}
-          onChange={(e) => draft.setDescription(e.target.value)}
-        />
-
-        {draft.save.error && (
-          <Typography color="error" variant="body2">
-            {draft.save.error}
-          </Typography>
-        )}
-        <Box>
-          <Button type="submit" variant="contained" disabled={!draft.canSave || draft.save.pending}>
-            {draft.save.pending ? "Creating..." : "Create playbook"}
-          </Button>
-        </Box>
-      </Stack>
-    </Paper>
+      <TextField
+        label={draft.template === "custom" ? "Playbook name" : "Playbook name (optional)"}
+        placeholder={draft.defaultName || "e.g. QQQ step-up buying"}
+        slotProps={{ inputLabel: { shrink: true } }}
+        size="small"
+        fullWidth
+        value={draft.name}
+        onChange={(e) => draft.setName(e.target.value)}
+      />
+      <TextField
+        label="Description (optional)"
+        size="small"
+        fullWidth
+        multiline
+        minRows={2}
+        value={draft.description}
+        onChange={(e) => draft.setDescription(e.target.value)}
+      />
+    </FormDialog>
   );
 }
 
@@ -155,7 +153,7 @@ function StepUpFields({ draft }: { draft: Draft }) {
           <Box component="ol" sx={{ m: 0, mt: 0.5, pl: 3, columns: steps.length > 6 ? 2 : 1 }}>
             {steps.map((step, i) => (
               <Typography component="li" variant="body2" key={i}>
-                {step.stock} &gt; ${step.price.toFixed(2)}
+                {step.stock} &gt; ${step.price}
               </Typography>
             ))}
           </Box>

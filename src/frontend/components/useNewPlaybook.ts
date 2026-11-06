@@ -40,7 +40,7 @@ function stepUpSteps({ stock, startPrice, count, percent }: StepUpDraft): Planne
     stock: stock.trim().toUpperCase(),
     operator: ">",
     price,
-    description: `Buy #${i + 1}: +${Math.round(((price / start - 1) * 100) * 10) / 10}% from $${start}`,
+    description: `Buy #${i + 1}: +${Math.floor(((price - start) * 100) / start)}% from $${start}`,
     explanation: i === 0 ? null : `Price rose another ${pct}%`,
   }));
 }
@@ -78,7 +78,7 @@ export function useNewPlaybook(userEmail: string) {
     return lookup.run(async () => {
       const current = await getStockPrice(stepUp.stock);
       if (current == null) throw new Error(`No price found for ${stepUp.stock.trim().toUpperCase()}`);
-      setStepUp((draft) => ({ ...draft, startPrice: String(current) }));
+      setStepUp((draft) => ({ ...draft, startPrice: String(Math.floor(current)) }));
     });
   }
 
