@@ -6,28 +6,59 @@ import { unwrap } from "@/backend/supabase/server";
 // A "Connect Telegram" link stops working after this long.
 const LINK_TOKEN_TTL_MS = 60 * 60 * 1000;
 
-// Sends one Telegram message (HTML formatting: <b>, <i>, <a href>). Returns the failure reason, or
-// null once it's sent; like sendEmail, it never throws.
-export async function sendTelegram(chatId: number, html: string): Promise<string | null> {
+// An inline keyboard: rows of buttons, each sending `data` back to the webhook when tapped (Telegram
+// allows up to 64 bytes of it).
+export type TelegramButton = { text: string; data: string };
+
+// Calls a Bot API method. Returns the failure reason, or null once it worked; it never throws.
+async function callTelegram(method: string, body: object): Promise<string | null> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return "TELEGRAM_BOT_TOKEN must be configured";
 
   try {
-    const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text: html, parse_mode: "HTML", link_preview_options: { is_disabled: true } }),
+      body: JSON.stringify(body),
     });
     if (response.ok) return null;
 
     const { description } = (await response.json().catch(() => ({}))) as { description?: string };
     const error = description ?? `HTTP ${response.status}`;
-    console.error(`Failed to send Telegram message to ${chatId}:`, error);
+    console.error(`Telegram ${method} failed:`, error);
     return error;
   } catch (err) {
-    console.error(`Failed to send Telegram message to ${chatId}:`, err);
+    console.error(`Telegram ${method} failed:`, err);
     return err instanceof Error ? err.message : String(err);
   }
+}
+
+function messageBody(html: string, buttons?: TelegramButton[][]) {
+  return {
+    text: html,
+    parse_mode: "HTML",
+    link_preview_options: { is_disabled: true },
+    // Left out when there are no buttons; an edit without it also removes the old ones.
+    ...(buttons && {
+      reply_markup: { inline_keyboard: buttons.map((row) => row.map((b) => ({ text: b.text, callback_data: b.data }))) },
+    }),
+  };
+}
+
+// Sends one Telegram message (HTML formatting: <b>, <i>, <a href>), optionally with buttons. Returns the
+// failure reason, or null once it's sent; like sendEmail, it never throws.
+export function sendTelegram(chatId: number, html: string, buttons?: TelegramButton[][]): Promise<string | null> {
+  return callTelegram("sendMessage", { chat_id: chatId, ...messageBody(html, buttons) });
+}
+
+// Replaces a message the bot sent (its buttons go away unless new ones are given).
+export function editTelegramMessage(chatId: number, messageId: number, html: string, buttons?: TelegramButton[][]) {
+  return callTelegram("editMessageText", { chat_id: chatId, message_id: messageId, ...messageBody(html, buttons) });
+}
+
+// Acknowledges a button tap, so the button stops showing a spinner.
+export function answerTelegramButton(callbackQueryId: string) {
+  return callTelegram("answerCallbackQuery", { callback_query_id: callbackQueryId });
 }
 
 // The linked chat for each of these login emails (emails with no linked chat are left out).
@@ -70,15 +101,39 @@ export async function completeTelegramLink(supabase: AdminClient, token: string,
   return (linked[0]?.email as string | undefined) ?? null;
 }
 
-// Saves a text the user sent the bot, for each login linked to the chat, and returns those logins'
-// emails (none when the chat isn't linked, so there's no one to show it to).
-export async function saveTelegramMessage(supabase: AdminClient, chatId: number, text: string): Promise<string[]> {
+// Saves a text the user sent the bot, for each login linked to the chat, and returns the saved rows
+// (none when the chat isn't linked, so there's no one to show it to).
+export async function saveTelegramMessage(
+  supabase: AdminClient,
+  chatId: number,
+  text: string,
+): Promise<{ id: number; email: string }[]> {
   const links = unwrap(await supabase.from("telegram_links").select("email").eq("chat_id", chatId));
-  const emails = links.map((link) => link.email as string);
-  if (emails.length === 0) return [];
+  if (links.length === 0) return [];
 
-  unwrap(await supabase.from("telegram_messages").insert(emails.map((email) => ({ email, chat_id: chatId, text }))));
-  return emails;
+  return unwrap(
+    await supabase
+      .from("telegram_messages")
+      .insert(links.map((link) => ({ email: link.email as string, chat_id: chatId, text })))
+      .select("id, email")
+      .overrideTypes<{ id: number; email: string }[], { merge: false }>(),
+  );
+}
+
+// Marks a saved message from this chat as handled (a button under it was tapped) and returns it, or
+// null when it isn't from this chat or was already handled, so each one is acted on once.
+export async function claimTelegramMessage(supabase: AdminClient, messageId: number, chatId: number) {
+  const [claimed] = unwrap(
+    await supabase
+      .from("telegram_messages")
+      .update({ handled_at: new Date().toISOString() })
+      .eq("id", messageId)
+      .eq("chat_id", chatId)
+      .is("handled_at", null)
+      .select("email, text")
+      .overrideTypes<{ email: string; text: string }[], { merge: false }>(),
+  );
+  return claimed ?? null;
 }
 
 // Stops sending to this chat (the user sent /stop, or blocked the bot).

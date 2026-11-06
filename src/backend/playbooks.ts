@@ -4,7 +4,8 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PLAYBOOK_COLUMNS } from "@/backend/data";
 import { unwrap } from "@/backend/supabase/server";
-import { ALERT_OPERATORS, type NewAlert, type NewPlaybook, type PlannedStep, type Playbook } from "@/shared/types";
+import { getStepStatus } from "@/shared/steps";
+import { ALERT_OPERATORS, type Alert, type NewAlert, type NewPlaybook, type PlannedStep, type Playbook } from "@/shared/types";
 
 // A playbook made from a template can't have more steps than this.
 const MAX_NEW_PLAYBOOK_STEPS = 20;
@@ -80,4 +81,75 @@ export async function createPlaybook(
   }
 
   return created;
+}
+
+// Adds a step at the end of a playbook's chain: it starts when the current last step fires, or watches
+// right away when that one already fired (or the playbook has no steps). Admin callers pass `email` so
+// only that login's playbook is changed; it throws when the playbook isn't theirs.
+export async function appendStep(supabase: SupabaseClient, playbookId: number, email: string, step: PlannedStep) {
+  const playbook = unwrap(
+    await supabase
+      .from("playbooks")
+      .select("id, name, alerts(id, created_at, isActive, triggered_at), alert_transitions(source_alert_id)")
+      .eq("id", playbookId)
+      .eq("email", email)
+      .maybeSingle()
+      .overrideTypes<
+        | (Pick<Playbook, "id" | "name"> & {
+            alerts: Pick<Alert, "id" | "created_at" | "isActive" | "triggered_at">[];
+            alert_transitions: { source_alert_id: number }[];
+          })
+        | null,
+        { merge: false }
+      >(),
+  );
+  if (!playbook) throw new Error("That playbook doesn't exist or isn't yours");
+
+  // The last step: the newest one that doesn't start anything yet.
+  const sources = new Set(playbook.alert_transitions.map((t) => t.source_alert_id));
+  const last = playbook.alerts
+    .filter((s) => !sources.has(s.id))
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+  const watchNow = !last || getStepStatus(last) === "done";
+
+  const created = unwrap(
+    await supabase
+      .from("alerts")
+      .insert({ ...toAlertFields({ ...step, isActive: watchNow }), playbook_id: playbookId })
+      .select("id")
+      .single<{ id: number }>(),
+  );
+  if (last) {
+    const { error } = await supabase.from("alert_transitions").insert({
+      playbook_id: playbookId,
+      source_alert_id: last.id,
+      target_alert_id: created.id,
+      explanation: step.explanation?.trim() || null,
+    });
+    if (error) {
+      // Don't leave a step behind that was meant to follow the last one but doesn't.
+      await supabase.from("alerts").delete().eq("id", created.id);
+      throw new Error(error.message);
+    }
+  }
+
+  return { playbook: { id: playbook.id, name: playbook.name }, watchNow };
+}
+
+// The login's playbooks to offer when adding a step on `stock`: those already on that stock first,
+// then the most recent.
+export async function getPlaybookChoices(supabase: SupabaseClient, email: string, stock: string, limit = 5) {
+  const playbooks = unwrap(
+    await supabase
+      .from("playbooks")
+      .select("id, name, created_at, alerts(stock)")
+      .eq("email", email)
+      .order("created_at", { ascending: false })
+      .limit(50)
+      .overrideTypes<(Pick<Playbook, "id" | "name" | "created_at"> & { alerts: { stock: string }[] })[], { merge: false }>(),
+  );
+  const onStock = (p: (typeof playbooks)[number]) => p.alerts.some((a) => a.stock === stock);
+  return [...playbooks.filter(onStock), ...playbooks.filter((p) => !onStock(p))]
+    .slice(0, limit)
+    .map((p) => ({ id: p.id, name: p.name }));
 }
