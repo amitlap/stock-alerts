@@ -70,18 +70,15 @@ export async function completeTelegramLink(supabase: AdminClient, token: string,
   return (linked[0]?.email as string | undefined) ?? null;
 }
 
-// Saves a text the user sent the bot, for each login linked to the chat. Returns false when the chat
-// isn't linked to any login (so there's no one to show it to).
-export async function saveTelegramMessage(supabase: AdminClient, chatId: number, text: string): Promise<boolean> {
+// Saves a text the user sent the bot, for each login linked to the chat, and returns those logins'
+// emails (none when the chat isn't linked, so there's no one to show it to).
+export async function saveTelegramMessage(supabase: AdminClient, chatId: number, text: string): Promise<string[]> {
   const links = unwrap(await supabase.from("telegram_links").select("email").eq("chat_id", chatId));
-  if (links.length === 0) return false;
+  const emails = links.map((link) => link.email as string);
+  if (emails.length === 0) return [];
 
-  unwrap(
-    await supabase
-      .from("telegram_messages")
-      .insert(links.map((link) => ({ email: link.email as string, chat_id: chatId, text }))),
-  );
-  return true;
+  unwrap(await supabase.from("telegram_messages").insert(emails.map((email) => ({ email, chat_id: chatId, text }))));
+  return emails;
 }
 
 // Stops sending to this chat (the user sent /stop, or blocked the bot).

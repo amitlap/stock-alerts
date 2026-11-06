@@ -14,6 +14,14 @@ export function formatAlertCondition(step: Condition): string {
   return `${step.operator ?? ">"} ${step.price ?? "?"}`;
 }
 
+// Reads an alert typed as text, like "NVDA > 250", "nvda<250" or "$BRK.B > $480.5"; null when the text
+// isn't one.
+export function parseAlertText(text: string): { stock: string; operator: AlertOperator; price: number } | null {
+  const match = /^\s*\$?([A-Za-z][A-Za-z0-9.^-]{0,9})\s*([<>])\s*\$?(\d+(?:\.\d+)?)\s*$/.exec(text);
+  if (!match) return null;
+  return { stock: match[1].toUpperCase(), operator: match[2] as AlertOperator, price: Number(match[3]) };
+}
+
 // "AAPL > 150"
 export function formatAlertLabel(step: Condition & { stock: string }): string {
   return `${step.stock} ${formatAlertCondition(step)}`;
