@@ -1,8 +1,9 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Typography } from "@mui/material";
-import { DataGrid, type GridColDef } from "@mui/x-data-grid";
+import { Box, Typography } from "@mui/material";
+import { DataGrid, type GridColDef, type GridSlotProps } from "@mui/x-data-grid";
 import type { PlaybookWithSteps } from "@/shared/types";
 import { removePlaybook } from "@/backend/actions";
 import { usePendingId } from "@/frontend/hooks";
@@ -10,7 +11,19 @@ import { formatAlertLabel, getStepStatus } from "@/shared/steps";
 import PlaybookProgress from "./PlaybookProgress";
 import RowActionButton from "./RowActionButton";
 
-export default function PlaybooksList({ playbooks }: { playbooks: PlaybookWithSteps[] }) {
+declare module "@mui/x-data-grid" {
+  interface ToolbarPropsOverrides {
+    header?: ReactNode;
+  }
+}
+
+// The table's header strip, above the column names.
+function HeaderToolbar({ header }: GridSlotProps["toolbar"]) {
+  return <Box sx={{ p: 1.5, borderBottom: 1, borderColor: "divider" }}>{header}</Box>;
+}
+
+// The playbooks table; `header`, when given, shows in a strip at its top.
+export default function PlaybooksList({ playbooks, header }: { playbooks: PlaybookWithSteps[]; header?: ReactNode }) {
   const router = useRouter();
   const deleting = usePendingId();
 
@@ -72,16 +85,19 @@ export default function PlaybooksList({ playbooks }: { playbooks: PlaybookWithSt
         </Typography>
       )}
       <DataGrid
-      autoHeight
-      rows={playbooks}
-      columns={columns}
-      rowHeight={60}
-      disableRowSelectionOnClick
-      onRowClick={(params) => router.push(`/playbooks/${params.row.id}`)}
-      sx={{
-        "& .MuiDataGrid-row": { cursor: "pointer" },
-        "& .MuiDataGrid-cell": { display: "flex", alignItems: "center" },
-      }}
+        autoHeight
+        rows={playbooks}
+        columns={columns}
+        rowHeight={60}
+        disableRowSelectionOnClick
+        onRowClick={(params) => router.push(`/playbooks/${params.row.id}`)}
+        showToolbar={header != null}
+        slots={{ toolbar: HeaderToolbar }}
+        slotProps={{ toolbar: { header } }}
+        sx={{
+          "& .MuiDataGrid-row": { cursor: "pointer" },
+          "& .MuiDataGrid-cell": { display: "flex", alignItems: "center" },
+        }}
       />
     </>
   );

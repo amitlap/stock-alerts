@@ -49,15 +49,16 @@ export function getPlaybookProgress(steps: StepState[]) {
   return { ...counts, total: steps.length };
 }
 
-// The trigger prices of a step-up ladder: each `percent` above the one before, starting from `start`
-// (so the first is already `percent` above it), floored to whole dollars. A step whose floored price
-// wouldn't be above the one before (a small % on a cheap stock) goes $1 above it instead.
-export function stepUpPrices(start: number, count: number, percent: number): number[] {
+// The trigger prices of a ladder: each `percent` above the one before (or below, for a negative
+// `percent`), starting from `start` (so the first is already one step away), floored to whole dollars.
+// A step whose floored price wouldn't move past the one before (a small % on a cheap stock) goes $1
+// past it instead, so a falling ladder can reach $0 or less; callers reject that.
+export function ladderPrices(start: number, count: number, percent: number): number[] {
   const prices: number[] = [];
   for (let i = 1; i <= count; i++) {
     const price = Math.floor(start * (1 + percent / 100) ** i);
     const previous = prices.at(-1) ?? Math.floor(start);
-    prices.push(Math.max(price, previous + 1));
+    prices.push(percent > 0 ? Math.max(price, previous + 1) : Math.min(price, previous - 1));
   }
   return prices;
 }

@@ -1,5 +1,5 @@
-import { Paper, Typography } from "@mui/material";
-import NewPlaybookButton from "@/frontend/components/NewPlaybookButton";
+import { Paper, Stack, Typography } from "@mui/material";
+import NewPlaybookChips from "@/frontend/components/NewPlaybookChips";
 import PageHeader from "@/frontend/components/PageHeader";
 import PlaybooksList from "@/frontend/components/PlaybooksList";
 import { getPlaybooks, getUser } from "@/backend/data";
@@ -21,15 +21,18 @@ export default async function PlaybooksPage() {
     <div className="flex flex-col flex-1 bg-zinc-50 font-sans dark:bg-black">
       <main className="flex flex-col w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1">
         <Paper component="section" elevation={1} sx={{ p: 4 }}>
-          <PageHeader title="My Playbooks">{user?.email && <NewPlaybookButton userEmail={user.email} />}</PageHeader>
+          <PageHeader title="My Playbooks" />
           {!user?.email ? (
             <Typography color="text.secondary">Log in to see your playbooks.</Typography>
           ) : error ? (
             <Typography color="error">Failed to load playbooks: {error}</Typography>
           ) : playbooks.length === 0 ? (
-            <Typography color="text.secondary">No playbooks yet — click New playbook to create one.</Typography>
+            <Stack spacing={2}>
+              <NewPlaybookChips userEmail={user.email} />
+              <Typography color="text.secondary">No playbooks yet — pick a type above to create one.</Typography>
+            </Stack>
           ) : (
-            <PlaybooksList playbooks={playbooks} />
+            <PlaybooksList playbooks={playbooks} header={<NewPlaybookChips userEmail={user.email} />} />
           )}
         </Paper>
       </main>

@@ -43,11 +43,13 @@ export type AlertTransition = {
 
 export type PlaybookWithSteps = Playbook & { alerts: Alert[] };
 
-// A step of a new playbook. A new playbook's steps form a chain: the first watches right away, and each
-// later one starts when the one before it fires (`explanation` says why, on that link).
+// A step of a new playbook. By default the steps form a chain: the first watches right away, and each
+// later one starts when the one before it fires (`explanation` says why, on that link). `after` changes
+// that: the index of an earlier step to start after instead, or null to watch right away.
 export type PlannedStep = Pick<NewAlert, "stock" | "operator" | "price"> & {
   description?: string | null;
   explanation?: string | null;
+  after?: number | null;
 };
 
 // The existing step a step follows: when `sourceAlertId` fires, the step starts watching.

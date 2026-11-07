@@ -6,10 +6,11 @@ import { revalidatePath } from "next/cache";
 import { ALERT_COLUMNS, getUser, isTelegramLinked, PLAYBOOK_COLUMNS } from "@/backend/data";
 import { runStockCheck as runStockCheckJob } from "@/backend/jobs/stockCheck";
 import { createPlaybook, toAlertFields, toPlaybookFields } from "@/backend/playbooks";
-import { getLatestStockPrices } from "@/backend/prices";
+import { getHistoricalPrices, getLatestStockPrices } from "@/backend/prices";
 import { createAdminClient } from "@/backend/supabase/admin";
 import { createClient, unwrap, unwrapChanged } from "@/backend/supabase/server";
 import { createTelegramLink } from "@/backend/telegram";
+import { findPriceLevel, type PriceLevel } from "@/shared/playbookTemplates";
 import {
   type Alert,
   type NewAlert,
@@ -78,6 +79,15 @@ export async function getStockPrice(symbol: string): Promise<number | null> {
 
   const [quote] = await getLatestStockPrices([symbol.trim().toUpperCase()]);
   return quote?.price ?? null;
+}
+
+// A stock's 3-month resistance or support, for "Find level" in the new-playbook form.
+export async function getPriceLevel(symbol: string, kind: "resistance" | "support"): Promise<PriceLevel> {
+  if (!(await getUser())) throw new Error("Unauthorized");
+  const stock = symbol.trim().toUpperCase();
+  if (!stock) return { price: null, error: "Fill in the stock first." };
+
+  return findPriceLevel(stock, await getHistoricalPrices(stock), kind);
 }
 
 export async function updatePlaybook(id: number, playbook: NewPlaybook): Promise<Playbook> {

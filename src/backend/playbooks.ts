@@ -44,8 +44,9 @@ export function toAlertFields(alert: Omit<NewAlert, "playbook_id">) {
   };
 }
 
-// Creates a playbook with its steps chained in order: the first watches now, and each later step
-// waits for the one before it to fire.
+// Creates a playbook with its steps. Steps are chained in order (the first watches now, and each later
+// step waits for the one before it to fire) unless a step's `after` names another earlier step, or null
+// to watch right away.
 export async function createPlaybook(
   supabase: SupabaseClient,
   playbook: NewPlaybook,
@@ -54,8 +55,12 @@ export async function createPlaybook(
   if (steps.length === 0 || steps.length > MAX_NEW_PLAYBOOK_STEPS) {
     throw new Error(`A new playbook needs 1 to ${MAX_NEW_PLAYBOOK_STEPS} steps`);
   }
+  const sources = steps.map((step, i) => (step.after === undefined ? (i === 0 ? null : i - 1) : step.after));
+  if (sources.some((source, i) => source !== null && !(Number.isInteger(source) && source >= 0 && source < i))) {
+    throw new Error("A step can only start after an earlier step");
+  }
   const fields = toPlaybookFields(playbook);
-  const stepFields = steps.map((step, i) => toAlertFields({ ...step, isActive: i === 0 }));
+  const stepFields = steps.map((step, i) => toAlertFields({ ...step, isActive: sources[i] === null }));
 
   const created = unwrap(await supabase.from("playbooks").insert(fields).select(PLAYBOOK_COLUMNS).single<Playbook>());
 
@@ -67,12 +72,18 @@ export async function createPlaybook(
         .insert(stepFields.map((step) => ({ ...step, playbook_id: created.id })))
         .select("id"),
     );
-    const links = inserted.slice(1).map((step, i) => ({
-      playbook_id: created.id,
-      source_alert_id: inserted[i].id,
-      target_alert_id: step.id,
-      explanation: steps[i + 1].explanation?.trim() || null,
-    }));
+    const links = inserted.flatMap((step, i) => {
+      const source = sources[i];
+      if (source === null) return [];
+      return [
+        {
+          playbook_id: created.id,
+          source_alert_id: inserted[source].id,
+          target_alert_id: step.id,
+          explanation: steps[i].explanation?.trim() || null,
+        },
+      ];
+    });
     if (links.length > 0) unwrap(await supabase.from("alert_transitions").insert(links));
   } catch (err) {
     // Don't leave a half-made playbook behind (deleting it deletes its steps and links).
