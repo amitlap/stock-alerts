@@ -228,6 +228,7 @@ async function handleButton(
         supabase,
         { name: planned.plan.name, description: "Created from Telegram", email: saved.email },
         planned.plan.steps,
+        request.template,
       );
       result = `Got it ✓ Created playbook ${link(playbook.id, playbook.name)} with ${planned.plan.steps.length} steps.`;
     } else if (!alert) {
@@ -237,6 +238,7 @@ async function handleButton(
         supabase,
         { name: formatAlertLabel(alert), description: "Created from Telegram", email: saved.email },
         [alert],
+        "alert",
       );
       result = `Got it ✓ Created playbook ${link(playbook.id, playbook.name)}.`;
     } else {

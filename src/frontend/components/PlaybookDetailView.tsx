@@ -16,6 +16,7 @@ import ButtonLink from "./ButtonLink";
 import FormDialog from "./FormDialog";
 import PlaybookProgress, { StepStatusChip } from "./PlaybookProgress";
 import StepDialog, { type StepDialogTarget } from "./StepDialog";
+import { PLAYBOOK_TEMPLATES } from "./useNewPlaybook";
 
 function StepRow({
   step,
@@ -153,6 +154,8 @@ export default function PlaybookDetailView({
   // The chart follows the selected step's stock, starting on the stock of the first watching step.
   const chartSymbol =
     chosenSymbol ?? steps.find((step) => getStepStatus(step) === "watching")?.stock ?? steps[0]?.stock;
+  // The same indicators as this playbook's type has in the new-playbook dialog.
+  const chart = PLAYBOOK_TEMPLATES.find((t) => t.value === playbook.type) ?? PLAYBOOK_TEMPLATES[0];
 
   // Selecting a step (in the list or the graph) also shows its stock in the price chart;
   // selecting the selected step again clears the selection.
@@ -325,7 +328,7 @@ export default function PlaybookDetailView({
         />
         {chartSymbol && (
           <Paper component="section" elevation={1} sx={{ p: 1, height: 480 }} aria-label={`${chartSymbol} price chart`}>
-            <TradingViewWidget ticker={chartSymbol} />
+            <TradingViewWidget ticker={chartSymbol} studies={chart.studies} interval={chart.interval} />
           </Paper>
         )}
       </Stack>

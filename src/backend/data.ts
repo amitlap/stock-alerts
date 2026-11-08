@@ -4,7 +4,7 @@ import { cache } from "react";
 import { createClient, unwrap } from "@/backend/supabase/server";
 import type { Alert, AlertTransition, Playbook, PlaybookWithSteps } from "@/shared/types";
 
-export const PLAYBOOK_COLUMNS = "id, created_at, name, description, email";
+export const PLAYBOOK_COLUMNS = "id, created_at, name, description, email, type";
 export const ALERT_COLUMNS =
   "id, created_at, stock, price, operator, isActive, description, playbook_id, triggered_at";
 const TRANSITION_COLUMNS = "id, created_at, playbook_id, source_alert_id, target_alert_id, explanation";

@@ -5,22 +5,29 @@ import { useRouter } from "next/navigation";
 import { addPlaybook, getPriceLevel, getStockPrice } from "@/backend/actions";
 import { useAsyncAction } from "@/frontend/hooks";
 import { parsePrice } from "@/shared/format";
-import { buildPlan, CRASH_DEFAULT_STOCK, levelKind, PLAN_DEFAULTS, type PlanTemplate } from "@/shared/playbookTemplates";
+import { buildPlan, levelKind, PLAN_DEFAULTS, type PlanTemplate } from "@/shared/playbookTemplates";
 import { formatAlertLabel } from "@/shared/steps";
-import type { PlannedStep } from "@/shared/types";
+import type { PlannedStep, PlaybookType } from "@/shared/types";
 import { EMPTY_CONDITION } from "./StepFields";
 
 export { levelKind, MAX_LADDER_STEPS, type PlanTemplate } from "@/shared/playbookTemplates";
 
-// The kinds of playbook the new-playbook form can make; the plan templates are worked out from a stock
-// and a start price (the plan fields).
-export type PlaybookTemplate = "alert" | "custom" | PlanTemplate;
+// The stock every new-playbook form and its chart start on.
+const DEFAULT_STOCK = "SPY";
 
-// Each type's `hint` shows under the type field; `about` is the longer explanation behind its info icon:
-// what it does, and when it's useful.
-export const PLAYBOOK_TEMPLATES: { value: PlaybookTemplate; label: string; hint: string; about: string }[] = [
+// Each type's `hint` shows at the top of its dialog; `about` is the longer explanation behind its info
+// icon: what it does, and when it's useful. `studies` are the TradingView indicators on its chart.
+export const PLAYBOOK_TEMPLATES: {
+  value: PlaybookType;
+  label: string;
+  hint: string;
+  about: string;
+  studies: string[];
+  interval?: "D" | "W";
+}[] = [
   {
     value: "alert",
+    studies: ["MASimple@tv-basicstudies"],
     label: "Price alert",
     hint: "One alert on one stock.",
     about:
@@ -28,6 +35,7 @@ export const PLAYBOOK_TEMPLATES: { value: PlaybookTemplate; label: string; hint:
   },
   {
     value: "custom",
+    studies: ["MASimple@tv-basicstudies"],
     label: "Custom playbook",
     hint: "Start with one step, then add the steps that follow.",
     about:
@@ -35,6 +43,8 @@ export const PLAYBOOK_TEMPLATES: { value: PlaybookTemplate; label: string; hint:
   },
   {
     value: "stepUp",
+    // Is the uptrend real and still strong?
+    studies: ["MAExp@tv-basicstudies", "MACD@tv-basicstudies"],
     label: "Buy as price rises",
     hint: "A ladder of buy alerts, each a set % above the one before. Each starts when the one before fires.",
     about:
@@ -42,6 +52,8 @@ export const PLAYBOOK_TEMPLATES: { value: PlaybookTemplate; label: string; hint:
   },
   {
     value: "dip",
+    // How stretched and oversold is the fall?
+    studies: ["BB@tv-basicstudies", "RSI@tv-basicstudies"],
     label: "Buy the dip",
     hint: "A ladder of buy alerts, each a set % below the one before. Each starts when the one before fires.",
     about:
@@ -49,6 +61,9 @@ export const PLAYBOOK_TEMPLATES: { value: PlaybookTemplate; label: string; hint:
   },
   {
     value: "crash",
+    // Weekly, to compare with past market falls.
+    studies: ["RSI@tv-basicstudies"],
+    interval: "W",
     label: "Market crash plan",
     hint: "Alerts when an index falls 10%, 20% and 30% from today, each a cue to put a third of your cash to work.",
     about:
@@ -56,6 +71,8 @@ export const PLAYBOOK_TEMPLATES: { value: PlaybookTemplate; label: string; hint:
   },
   {
     value: "bracket",
+    // Daily range, to set a stop wider than normal swings.
+    studies: ["ATR@tv-basicstudies"],
     label: "Exit bracket",
     hint: "A stop loss below and a take profit above your entry price, both watching from the start.",
     about:
@@ -63,6 +80,8 @@ export const PLAYBOOK_TEMPLATES: { value: PlaybookTemplate; label: string; hint:
   },
   {
     value: "breakout",
+    // Swing highs and the highest-high channel: where resistance sits.
+    studies: ["PivotPointsHighLow@tv-basicstudies", "DONCH@tv-basicstudies"],
     label: "Resistance breakout",
     hint: "An alert when the price breaks 1% above resistance, then one when it pulls back to it (a lower-risk buy).",
     about:
@@ -70,6 +89,8 @@ export const PLAYBOOK_TEMPLATES: { value: PlaybookTemplate; label: string; hint:
   },
   {
     value: "support",
+    // Swing lows, and whether it's oversold there.
+    studies: ["PivotPointsHighLow@tv-basicstudies", "RSI@tv-basicstudies"],
     label: "Support bounce",
     hint: "An alert when the price comes within 2% of support (a buy zone), then one if it breaks 3% below.",
     about:
@@ -77,7 +98,7 @@ export const PLAYBOOK_TEMPLATES: { value: PlaybookTemplate; label: string; hint:
   },
 ];
 
-export function isPlanTemplate(template: PlaybookTemplate): template is PlanTemplate {
+export function isPlanTemplate(template: PlaybookType): template is PlanTemplate {
   return template !== "alert" && template !== "custom";
 }
 
@@ -91,7 +112,7 @@ export type PlanDraft = {
 };
 
 const EMPTY_PLAN: PlanDraft = {
-  stock: "",
+  stock: DEFAULT_STOCK,
   startPrice: "",
   count: String(PLAN_DEFAULTS.count),
   percent: String(PLAN_DEFAULTS.percent),
@@ -113,13 +134,12 @@ function planInput(template: PlanTemplate, draft: PlanDraft) {
 }
 
 // Form state for creating a playbook of one type; on success it opens the new playbook.
-export function useNewPlaybook(userEmail: string, template: PlaybookTemplate) {
+export function useNewPlaybook(userEmail: string, template: PlaybookType) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [condition, setCondition] = useState(EMPTY_CONDITION);
-  // The crash plan is about the whole market, so it starts on SPY.
-  const [plan, setPlan] = useState(() => (template === "crash" ? { ...EMPTY_PLAN, stock: CRASH_DEFAULT_STOCK } : EMPTY_PLAN));
+  const [condition, setCondition] = useState({ ...EMPTY_CONDITION, stock: DEFAULT_STOCK });
+  const [plan, setPlan] = useState(EMPTY_PLAN);
   const save = useAsyncAction();
   const lookup = useAsyncAction();
 
@@ -162,12 +182,14 @@ export function useNewPlaybook(userEmail: string, template: PlaybookTemplate) {
       const playbook = await addPlaybook(
         { name: name.trim() || defaultName, description, email: userEmail },
         steps,
+        template,
       );
       router.push(`/playbooks/${playbook.id}`);
     });
   }
 
   return {
+    stock: (isPlanTemplate(template) ? plan.stock : condition.stock).trim().toUpperCase(),
     name,
     setName,
     defaultName,

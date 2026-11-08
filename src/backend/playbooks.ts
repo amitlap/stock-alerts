@@ -5,7 +5,15 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { PLAYBOOK_COLUMNS } from "@/backend/data";
 import { unwrap } from "@/backend/supabase/server";
 import { getStepStatus } from "@/shared/steps";
-import { ALERT_OPERATORS, type Alert, type NewAlert, type NewPlaybook, type PlannedStep, type Playbook } from "@/shared/types";
+import {
+  ALERT_OPERATORS,
+  type Alert,
+  type NewAlert,
+  type NewPlaybook,
+  type PlannedStep,
+  type Playbook,
+  type PlaybookType,
+} from "@/shared/types";
 
 // A playbook made from a template can't have more steps than this.
 const MAX_NEW_PLAYBOOK_STEPS = 20;
@@ -51,6 +59,7 @@ export async function createPlaybook(
   supabase: SupabaseClient,
   playbook: NewPlaybook,
   steps: PlannedStep[],
+  type: PlaybookType,
 ): Promise<Playbook> {
   if (steps.length === 0 || steps.length > MAX_NEW_PLAYBOOK_STEPS) {
     throw new Error(`A new playbook needs 1 to ${MAX_NEW_PLAYBOOK_STEPS} steps`);
@@ -62,7 +71,9 @@ export async function createPlaybook(
   const fields = toPlaybookFields(playbook);
   const stepFields = steps.map((step, i) => toAlertFields({ ...step, isActive: sources[i] === null }));
 
-  const created = unwrap(await supabase.from("playbooks").insert(fields).select(PLAYBOOK_COLUMNS).single<Playbook>());
+  const created = unwrap(
+    await supabase.from("playbooks").insert({ ...fields, type }).select(PLAYBOOK_COLUMNS).single<Playbook>(),
+  );
 
   try {
     // Inserted rows come back in the order they were sent.

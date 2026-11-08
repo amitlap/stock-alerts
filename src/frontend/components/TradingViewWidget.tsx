@@ -2,8 +2,19 @@
 
 import { memo, useEffect, useRef } from "react";
 
-// TradingView's embeddable advanced chart for one symbol.
-function TradingViewWidget({ ticker }: { ticker: string }) {
+// TradingView's embeddable advanced chart for one symbol, optionally with indicators (`studies` must be
+// a stable array, since a new one reloads the chart) and with the symbol locked to `ticker`.
+function TradingViewWidget({
+  ticker,
+  studies,
+  interval = "D",
+  lockSymbol = false,
+}: {
+  ticker: string;
+  studies?: string[];
+  interval?: "D" | "W";
+  lockSymbol?: boolean;
+}) {
   const container = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -20,7 +31,7 @@ function TradingViewWidget({ ticker }: { ticker: string }) {
       script.type = "text/javascript";
       script.async = true;
       script.innerHTML = JSON.stringify({
-        allow_symbol_change: true,
+        allow_symbol_change: !lockSymbol,
         calendar: false,
         details: false,
         hide_side_toolbar: true,
@@ -28,7 +39,7 @@ function TradingViewWidget({ ticker }: { ticker: string }) {
         hide_legend: false,
         hide_volume: false,
         hotlist: false,
-        interval: "D",
+        interval,
         locale: "en",
         save_image: true,
         style: "1",
@@ -41,7 +52,7 @@ function TradingViewWidget({ ticker }: { ticker: string }) {
         withdateranges: false,
         compareSymbols: [],
         support_host: "https://www.tradingview.com",
-        studies: [],
+        studies: studies ?? [],
         autosize: true,
       });
       el.appendChild(script);
@@ -51,7 +62,7 @@ function TradingViewWidget({ ticker }: { ticker: string }) {
       clearTimeout(timer);
       el.innerHTML = "";
     };
-  }, [ticker]);
+  }, [ticker, studies, interval, lockSymbol]);
 
   return (
     <div className="tradingview-widget-container" ref={container} style={{ height: "100%", width: "100%" }} />

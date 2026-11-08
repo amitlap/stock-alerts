@@ -1,9 +1,9 @@
 // Playbook templates whose steps are worked out from a stock and a start price. Shared by the
 // new-playbook form and the Telegram bot, so both make exactly the same playbooks.
 import { ladderPrices } from "./steps";
-import type { Candle, PlannedStep } from "./types";
+import type { Candle, PlannedStep, PlaybookType } from "./types";
 
-export type PlanTemplate = "stepUp" | "dip" | "crash" | "bracket" | "breakout" | "support";
+export type PlanTemplate = Exclude<PlaybookType, "alert" | "custom">;
 
 // The templates whose start price is a resistance or support level rather than the current price.
 export const LEVEL_TEMPLATES = { breakout: "resistance", support: "support" } as const;

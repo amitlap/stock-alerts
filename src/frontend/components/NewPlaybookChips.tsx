@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { Box, Button, Chip, Stack, SvgIcon, TextField, Tooltip, Typography } from "@mui/material";
+import type { PlaybookType } from "@/shared/types";
 import FormDialog from "./FormDialog";
 import { ConditionFields } from "./StepFields";
+import TradingViewWidget from "./TradingViewWidget";
 import {
   isPlanTemplate,
   levelKind,
@@ -11,7 +13,6 @@ import {
   PLAYBOOK_TEMPLATES,
   type PlanDraft,
   type PlanTemplate,
-  type PlaybookTemplate,
   useNewPlaybook,
 } from "./useNewPlaybook";
 
@@ -20,7 +21,7 @@ type Draft = ReturnType<typeof useNewPlaybook>;
 // The playbook types as chips on the Playbooks page, the one place playbooks are created: a click opens
 // the dialog for that type, and the new playbook opens once it's saved. Each chip's "i" explains the type.
 export default function NewPlaybookChips({ userEmail }: { userEmail: string }) {
-  const [open, setOpen] = useState<PlaybookTemplate | null>(null);
+  const [open, setOpen] = useState<PlaybookType | null>(null);
 
   return (
     <>
@@ -58,11 +59,13 @@ function NewPlaybookDialog({
   onClose,
 }: {
   userEmail: string;
-  templateValue: PlaybookTemplate;
+  templateValue: PlaybookType;
   onClose: () => void;
 }) {
   const draft = useNewPlaybook(userEmail, templateValue);
   const template = PLAYBOOK_TEMPLATES.find((t) => t.value === templateValue)!;
+  // Follows the stock field when it loses focus, so typing a ticker doesn't reload the chart per letter.
+  const [chartStock, setChartStock] = useState(draft.stock);
 
   return (
     <FormDialog
@@ -73,42 +76,56 @@ function NewPlaybookDialog({
       saving={draft.save.pending}
       canSave={draft.canSave}
       error={draft.save.error}
-      maxWidth="sm"
+      maxWidth="lg"
     >
-      <Stack direction="row" spacing={0.75} sx={{ alignItems: "flex-start" }}>
-        <Typography variant="body2" color="text.secondary">
-          {template.hint}
-        </Typography>
-        <InfoTip label={template.label} about={template.about} />
-      </Stack>
+      <Stack direction={{ xs: "column", md: "row" }} spacing={3}>
+        <Stack
+          spacing={2}
+          sx={{ width: { xs: "100%", md: 400 }, flexShrink: 0 }}
+          onBlur={() => {
+            if (draft.stock) setChartStock(draft.stock);
+          }}
+        >
+          <Stack direction="row" spacing={0.75} sx={{ alignItems: "flex-start" }}>
+            <Typography variant="body2" color="text.secondary">
+              {template.hint}
+            </Typography>
+            <InfoTip label={template.label} about={template.about} />
+          </Stack>
 
-      {isPlanTemplate(templateValue) ? (
-        <PlanFields draft={draft} template={templateValue} />
-      ) : (
-        <Stack spacing={1}>
-          {templateValue === "custom" && <Typography variant="subtitle2">First step — start watching when</Typography>}
-          <ConditionFields value={draft.condition} onChange={draft.setCondition} />
+          {isPlanTemplate(templateValue) ? (
+            <PlanFields draft={draft} template={templateValue} />
+          ) : (
+            <Stack spacing={1}>
+              {templateValue === "custom" && <Typography variant="subtitle2">First step — start watching when</Typography>}
+              <ConditionFields value={draft.condition} onChange={draft.setCondition} />
+            </Stack>
+          )}
+
+          <TextField
+            label={templateValue === "custom" ? "Playbook name" : "Playbook name (optional)"}
+            placeholder={draft.defaultName || "e.g. QQQ step-up buying"}
+            slotProps={{ inputLabel: { shrink: true } }}
+            size="small"
+            fullWidth
+            value={draft.name}
+            onChange={(e) => draft.setName(e.target.value)}
+          />
+          <TextField
+            label="Description (optional)"
+            size="small"
+            fullWidth
+            multiline
+            minRows={2}
+            value={draft.description}
+            onChange={(e) => draft.setDescription(e.target.value)}
+          />
         </Stack>
-      )}
 
-      <TextField
-        label={templateValue === "custom" ? "Playbook name" : "Playbook name (optional)"}
-        placeholder={draft.defaultName || "e.g. QQQ step-up buying"}
-        slotProps={{ inputLabel: { shrink: true } }}
-        size="small"
-        fullWidth
-        value={draft.name}
-        onChange={(e) => draft.setName(e.target.value)}
-      />
-      <TextField
-        label="Description (optional)"
-        size="small"
-        fullWidth
-        multiline
-        minRows={2}
-        value={draft.description}
-        onChange={(e) => draft.setDescription(e.target.value)}
-      />
+        <Box sx={{ flex: 1, minWidth: 0, height: { xs: 360, md: 520 } }}>
+          <TradingViewWidget ticker={chartStock} studies={template.studies} interval={template.interval} lockSymbol />
+        </Box>
+      </Stack>
     </FormDialog>
   );
 }

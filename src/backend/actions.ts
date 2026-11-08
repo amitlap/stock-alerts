@@ -17,6 +17,7 @@ import {
   type NewPlaybook,
   type PlannedStep,
   type Playbook,
+  type PlaybookType,
   type StepSource,
 } from "@/shared/types";
 
@@ -66,8 +67,8 @@ async function setStepSource(supabase: SupabaseClient, playbookId: number, stepI
 
 // Creates a playbook with its steps chained in order: the first watches now, and each later step
 // waits for the one before it to fire.
-export async function addPlaybook(playbook: NewPlaybook, steps: PlannedStep[]): Promise<Playbook> {
-  const created = await createPlaybook(await createClient(), playbook, steps);
+export async function addPlaybook(playbook: NewPlaybook, steps: PlannedStep[], type: PlaybookType): Promise<Playbook> {
+  const created = await createPlaybook(await createClient(), playbook, steps, type);
   revalidateApp();
   return created;
 }

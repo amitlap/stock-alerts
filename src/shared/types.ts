@@ -10,9 +10,14 @@ export type NewPlaybook = {
   email: string;
 };
 
+// The template a playbook was made from.
+export type PlaybookType = "alert" | "custom" | "stepUp" | "dip" | "crash" | "bracket" | "breakout" | "support";
+
 export type Playbook = NewPlaybook & {
   id: number;
   created_at: string;
+  // Null on older playbooks whose type couldn't be worked out.
+  type: PlaybookType | null;
 };
 
 export type NewAlert = {
