@@ -193,6 +193,22 @@ export const TEMPLATE_COMMAND_HELP = [
   "<b>support NVDA</b> — support bounce: alert near its 3-month low, then if it breaks below",
 ];
 
+// The bot's buttons for picking a playbook type once it has a ticker; each is its command word.
+export const TEMPLATE_BUTTONS = [
+  { command: "dip", label: "📉 Buy the dip" },
+  { command: "rise", label: "📈 Buy as it rises" },
+  { command: "crash", label: "🚨 Crash plan" },
+  { command: "bracket", label: "🎯 Exit bracket" },
+  { command: "breakout", label: "🚀 Breakout" },
+  { command: "support", label: "🛟 Support bounce" },
+];
+
+// Reads a message that's just a ticker, like "NVDA" or "$brk.b"; null when it's anything else.
+export function parseTickerText(text: string): string | null {
+  const match = /^\s*\$?([A-Za-z][A-Za-z0-9.^-]{0,9})\s*$/.exec(text);
+  return match ? match[1].toUpperCase() : null;
+}
+
 export type TemplateRequest = Omit<PlanInput, "start"> & { template: PlanTemplate; start: number | null };
 
 // Reads a template typed as text, like "dip NVDA", "/dip nvda 5 7%" or "bracket TSLA 8 20 at 250": the

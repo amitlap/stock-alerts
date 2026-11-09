@@ -8,6 +8,7 @@ import {
   claimTelegramMessage,
   completeTelegramLink,
   editTelegramMessage,
+  isTelegramChatLinked,
   saveTelegramMessage,
   sendTelegram,
   unlinkTelegramChat,
@@ -17,7 +18,9 @@ import {
   buildPlan,
   levelKind,
   parseTemplateText,
+  parseTickerText,
   findPriceLevel,
+  TEMPLATE_BUTTONS,
   TEMPLATE_COMMAND_HELP,
   type PriceLevel,
   type TemplateRequest,
@@ -37,10 +40,14 @@ type TelegramUpdate = {
 // "plan:<message id>:<start price in cents>" makes the playbook a saved template text describes, from the
 // price shown in its preview (so what's created matches what was shown).
 const BUTTON_DATA = /^(new|add|plan):(\d+)(?::(\d+))?$/;
+// "pick:<command>:<ticker>" (a playbook type chosen for a ticker) acts as if the user typed "<command> <ticker>".
+const PICK_DATA = /^pick:(\w+):(.+)$/;
 
 // Every kind of playbook the bot can make, for /start and /help.
 const HELP = [
-  "Send me any of these to make a playbook:",
+  "Send a ticker like <b>NVDA</b> and pick a playbook type from the buttons.",
+  "",
+  "Or write it yourself:",
   "<b>NVDA &gt; 250</b> or <b>NVDA &lt; 180</b> — a price alert, as a new playbook or the next step in one of yours (that's how you build a custom playbook)",
   ...TEMPLATE_COMMAND_HELP,
   "",
@@ -98,38 +105,39 @@ export async function POST(request: Request) {
   return NextResponse.json({ ok: true });
 }
 
-// Saves the text. One like "NVDA > 250" also gets buttons: a new playbook, or a step in one of the
-// login's playbooks. A chat is normally linked to one login; with several, the first one's are offered.
+// The bot only makes playbooks, so every message ends in one of: a preview to create, a choice of types
+// for a ticker, or a pointer to what it understands. Only the first needs saving, for its buttons to act
+// on. A chat is normally linked to one login; with several, the first one's playbooks are offered.
 async function replyToText(supabase: AdminClient, chatId: number, text: string) {
-  const saved = await saveTelegramMessage(supabase, chatId, text);
-  if (saved.length === 0) {
-    await sendTelegram(chatId, "To send me messages, first click <b>Connect Telegram</b> in the app.");
+  if (!(await isTelegramChatLinked(supabase, chatId))) {
+    await sendTelegram(chatId, "To make playbooks here, first click <b>Connect Telegram</b> in the app.");
     return;
   }
 
   const request = parseTemplateText(text);
-  if (request) {
-    await replyToTemplate(chatId, saved[0].id, request);
+  const alert = request ? null : parseAlertText(text);
+  if (!request && !alert) {
+    await replyToOtherText(chatId, text);
     return;
   }
 
-  const alert = parseAlertText(text);
-  if (!alert) {
-    await sendTelegram(chatId, "Got it ✓ Refresh the app to see your message. Send /help to see how to make playbooks here.");
+  const [saved] = await saveTelegramMessage(supabase, chatId, text);
+  if (!saved) return;
+
+  if (request) {
+    await replyToTemplate(chatId, saved.id, request);
     return;
   }
+  if (!alert) return;
 
   // Check the symbol is real before offering a step that would never fire.
   const [quote] = await getLatestStockPrices([alert.stock]).catch(() => []);
   if (quote?.price == null) {
-    await sendTelegram(
-      chatId,
-      `Saved your message, but I couldn't find a price for <b>${escapeHtml(alert.stock)}</b>, so there's nothing to add.`,
-    );
+    await sendTelegram(chatId, `I couldn't find a price for <b>${escapeHtml(alert.stock)}</b>, so there's nothing to add.`);
     return;
   }
 
-  const { id: messageId, email } = saved[0];
+  const { id: messageId, email } = saved;
   const choices = await getPlaybookChoices(supabase, email, alert.stock);
   const buttons: TelegramButton[][] = [
     [{ text: "➕ New playbook", data: `new:${messageId}` }],
@@ -140,6 +148,26 @@ async function replyToText(supabase: AdminClient, chatId: number, text: string) 
     chatId,
     `<b>${escapeHtml(formatAlertLabel(alert))}</b> — ${alert.stock} is now $${quote.price.toFixed(2)}.${firesNext}\n\nWhere should it go?`,
     buttons,
+  );
+}
+
+// A real ticker gets a button per playbook type; anything else is told what the bot understands.
+async function replyToOtherText(chatId: number, text: string) {
+  const stock = parseTickerText(text);
+  const [quote] = stock ? await getLatestStockPrices([stock]).catch(() => []) : [];
+  if (!stock || quote?.price == null) {
+    await sendTelegram(
+      chatId,
+      "I only make playbooks, so I can't read other messages.\n\nSend a ticker like <b>NVDA</b> to choose a playbook, or a price alert like <b>NVDA &gt; 250</b>. /help shows everything.",
+    );
+    return;
+  }
+
+  const buttons = TEMPLATE_BUTTONS.map(({ command, label }) => ({ text: label, data: `pick:${command}:${stock}` }));
+  await sendTelegram(
+    chatId,
+    `<b>${escapeHtml(stock)}</b> is now $${quote.price.toFixed(2)}. Which playbook do you want?\n\nYou'll see the steps before anything is created. For a simple price alert, send <b>${escapeHtml(stock)} &gt; ${Math.ceil(quote.price)}</b>.`,
+    [buttons.slice(0, 2), buttons.slice(2, 4), buttons.slice(4)],
   );
 }
 
@@ -179,7 +207,7 @@ async function planFromRequest(
 async function replyToTemplate(chatId: number, messageId: number, request: TemplateRequest) {
   const result = await planFromRequest(request);
   if ("error" in result) {
-    await sendTelegram(chatId, `Saved your message, but ${escapeHtml(result.error)}\n\n${HELP}`);
+    await sendTelegram(chatId, `${escapeHtml(result.error)}\n\n${HELP}`);
     return;
   }
 
@@ -204,6 +232,12 @@ async function handleButton(
   siteUrl: string,
 ) {
   await answerTelegramButton(query.id);
+
+  const pick = PICK_DATA.exec(query.data ?? "");
+  if (pick && query.message) {
+    await replyToText(supabase, query.message.chat.id, `${pick[1]} ${pick[2]}`);
+    return;
+  }
 
   const match = BUTTON_DATA.exec(query.data ?? "");
   if (!match || !query.message) return;

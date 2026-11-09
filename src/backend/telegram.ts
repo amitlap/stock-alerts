@@ -101,8 +101,14 @@ export async function completeTelegramLink(supabase: AdminClient, token: string,
   return (linked[0]?.email as string | undefined) ?? null;
 }
 
-// Saves a text the user sent the bot, for each login linked to the chat, and returns the saved rows
-// (none when the chat isn't linked, so there's no one to show it to).
+// Whether any login is linked to this chat.
+export async function isTelegramChatLinked(supabase: AdminClient, chatId: number): Promise<boolean> {
+  const links = unwrap(await supabase.from("telegram_links").select("email").eq("chat_id", chatId).limit(1));
+  return links.length > 0;
+}
+
+// Saves a text the user sent the bot, for each login linked to the chat, so the buttons under the bot's
+// reply can act on it once; returns the saved rows (none when the chat isn't linked).
 export async function saveTelegramMessage(
   supabase: AdminClient,
   chatId: number,
