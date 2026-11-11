@@ -12,6 +12,7 @@ import { createClient, unwrap, unwrapChanged } from "@/backend/supabase/server";
 import { createTelegramLink } from "@/backend/telegram";
 import { findPriceLevel, type PriceLevel } from "@/shared/playbookTemplates";
 import {
+  MAX_COMMENT_LENGTH,
   type Alert,
   type NewAlert,
   type NewPlaybook,
@@ -105,6 +106,69 @@ export async function updatePlaybook(id: number, playbook: NewPlaybook): Promise
 export async function removePlaybook(id: number): Promise<void> {
   const supabase = await createClient();
   unwrapChanged(await supabase.from("playbooks").delete().eq("id", id).select("id"), "playbook");
+  revalidateApp();
+}
+
+// Public playbooks are visible to the viewers the owner has added.
+export async function setPlaybookPublic(id: number, isPublic: boolean): Promise<void> {
+  const supabase = await createClient();
+  unwrapChanged(await supabase.from("playbooks").update({ is_public: isPublic }).eq("id", id).select("id"), "playbook");
+  revalidateApp();
+}
+
+// Lets `email` see all the signed-in user's public playbooks. Works whether or not that person has an
+// account yet, so this can't be used to find out who has one.
+export async function addViewer(email: string): Promise<void> {
+  const user = await getUser();
+  if (!user?.email) throw new Error("Unauthorized");
+
+  const viewer = email.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(viewer)) throw new Error("Enter a valid email address");
+  if (viewer === user.email.toLowerCase()) throw new Error("You can already see your own playbooks");
+
+  const supabase = await createClient();
+  unwrap(
+    await supabase
+      .from("playbook_viewers")
+      .upsert({ owner_email: user.email, viewer_email: viewer }, { ignoreDuplicates: true }),
+  );
+  revalidateApp();
+}
+
+export async function removeViewer(email: string): Promise<void> {
+  const user = await getUser();
+  if (!user?.email) throw new Error("Unauthorized");
+
+  const supabase = await createClient();
+  unwrapChanged(
+    await supabase
+      .from("playbook_viewers")
+      .delete()
+      .eq("owner_email", user.email)
+      .eq("viewer_email", email)
+      .select("viewer_email"),
+    "viewer",
+  );
+  revalidateApp();
+}
+
+export async function addComment(playbookId: number, body: string): Promise<void> {
+  const user = await getUser();
+  if (!user?.email) throw new Error("Unauthorized");
+
+  const text = body.trim();
+  if (!text) throw new Error("Write a message first");
+  if (text.length > MAX_COMMENT_LENGTH) throw new Error(`Keep it under ${MAX_COMMENT_LENGTH} characters`);
+
+  const supabase = await createClient();
+  unwrap(await supabase.from("playbook_comments").insert({ playbook_id: playbookId, author_email: user.email, body: text }));
+  revalidateApp();
+}
+
+// Allowed for the comment's author and the playbook's owner.
+export async function removeComment(id: number): Promise<void> {
+  const supabase = await createClient();
+  unwrapChanged(await supabase.from("playbook_comments").delete().eq("id", id).select("id"), "comment");
   revalidateApp();
 }
 

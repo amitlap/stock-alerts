@@ -18,6 +18,20 @@ export type Playbook = NewPlaybook & {
   created_at: string;
   // Null on older playbooks whose type couldn't be worked out.
   type: PlaybookType | null;
+  // Public playbooks are visible to the viewers their owner has added.
+  is_public: boolean;
+};
+
+// Also enforced by the playbook_comments table.
+export const MAX_COMMENT_LENGTH = 2000;
+
+// A message on a playbook, visible to everyone who can see the playbook.
+export type PlaybookComment = {
+  id: number;
+  created_at: string;
+  playbook_id: number;
+  author_email: string;
+  body: string;
 };
 
 export type NewAlert = {

@@ -35,6 +35,7 @@ export default async function StepPage({
           playbook={playbook}
           steps={steps}
           transitions={transitions}
+          isOwner={detail.isOwner}
         />
       </main>
     </div>

@@ -46,6 +46,7 @@ export default function StepPageView({
   playbook,
   steps,
   transitions,
+  isOwner,
 }: {
   alert: Alert;
   stock?: StockPrice;
@@ -53,6 +54,7 @@ export default function StepPageView({
   playbook: Playbook;
   steps: Alert[];
   transitions: AlertTransition[];
+  isOwner: boolean;
 }) {
   const isUp = (stock?.change ?? 0) >= 0;
   const changeColor = priceChangeColor(stock?.change);
@@ -95,9 +97,11 @@ export default function StepPageView({
           size="small"
         />
         <Box sx={{ flex: 1 }} />
-        <ButtonLink href={`/playbooks/${playbook.id}?edit=${alert.id}`} variant="outlined" size="small">
-          Edit in playbook
-        </ButtonLink>
+        {isOwner && (
+          <ButtonLink href={`/playbooks/${playbook.id}?edit=${alert.id}`} variant="outlined" size="small">
+            Edit in playbook
+          </ButtonLink>
+        )}
       </Stack>
 
       <Paper component="section" elevation={1} sx={{ p: 2, mb: 2 }}>

@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Box, Typography } from "@mui/material";
+import { Box, Chip, Typography } from "@mui/material";
 import { DataGrid, type GridColDef, type GridSlotProps } from "@mui/x-data-grid";
 import type { PlaybookWithSteps } from "@/shared/types";
 import { removePlaybook } from "@/backend/actions";
@@ -22,8 +22,17 @@ function HeaderToolbar({ header }: GridSlotProps["toolbar"]) {
   return <Box sx={{ p: 1.5, borderBottom: 1, borderColor: "divider" }}>{header}</Box>;
 }
 
-// The playbooks table; `header`, when given, shows in a strip at its top.
-export default function PlaybooksList({ playbooks, header }: { playbooks: PlaybookWithSteps[]; header?: ReactNode }) {
+// The playbooks table; `header`, when given, shows in a strip at its top. `shared` is for other people's
+// playbooks: it shows who owns each one instead of its visibility and Delete.
+export default function PlaybooksList({
+  playbooks,
+  header,
+  shared = false,
+}: {
+  playbooks: PlaybookWithSteps[];
+  header?: ReactNode;
+  shared?: boolean;
+}) {
   const router = useRouter();
   const deleting = usePendingId();
 
@@ -57,24 +66,41 @@ export default function PlaybooksList({ playbooks, header }: { playbooks: Playbo
       flex: 0.8,
       valueGetter: (_value, row) => new Date(row.created_at).toLocaleDateString(),
     },
-    {
-      field: "actions",
-      headerName: "",
-      sortable: false,
-      filterable: false,
-      align: "right",
-      flex: 0.6,
-      renderCell: ({ row }) => (
-        <RowActionButton
-          color="error"
-          onClick={() => handleDelete(row)}
-          pending={deleting.pendingId === row.id}
-          pendingLabel="Deleting..."
-        >
-          Delete
-        </RowActionButton>
-      ),
-    },
+    ...(shared
+      ? ([{ field: "email", headerName: "Shared by", flex: 1 }] satisfies GridColDef<PlaybookWithSteps>[])
+      : ([
+          {
+            field: "is_public",
+            headerName: "Visibility",
+            flex: 0.6,
+            renderCell: ({ row }) => (
+              <Chip
+                size="small"
+                variant="outlined"
+                color={row.is_public ? "primary" : "default"}
+                label={row.is_public ? "Public" : "Private"}
+              />
+            ),
+          },
+          {
+            field: "actions",
+            headerName: "",
+            sortable: false,
+            filterable: false,
+            align: "right",
+            flex: 0.6,
+            renderCell: ({ row }) => (
+              <RowActionButton
+                color="error"
+                onClick={() => handleDelete(row)}
+                pending={deleting.pendingId === row.id}
+                pendingLabel="Deleting..."
+              >
+                Delete
+              </RowActionButton>
+            ),
+          },
+        ] satisfies GridColDef<PlaybookWithSteps>[])),
   ];
 
   return (

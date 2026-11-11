@@ -1,10 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Box, Button, IconButton, Paper, Stack, TextField, Tooltip, Typography } from "@mui/material";
+import {
+  Box,
+  Button,
+  Chip,
+  FormControlLabel,
+  IconButton,
+  Paper,
+  Stack,
+  Switch,
+  TextField,
+  Tooltip,
+  Typography,
+} from "@mui/material";
 import type { Alert, AlertTransition, Playbook } from "@/shared/types";
-import { removeAlert, removePlaybook, updatePlaybook } from "@/backend/actions";
+import { removeAlert, removePlaybook, setPlaybookPublic, updatePlaybook } from "@/backend/actions";
 import { useAsyncAction, usePendingId } from "@/frontend/hooks";
 import { orderStepsByFlow } from "@/frontend/playbookFlow";
 import { formatTimeAgo } from "@/shared/format";
@@ -23,6 +35,7 @@ function StepRow({
   index,
   selected,
   removing,
+  readOnly,
   onSelect,
   onEdit,
   onRemove,
@@ -31,6 +44,7 @@ function StepRow({
   index: number;
   selected: boolean;
   removing: boolean;
+  readOnly: boolean;
   onSelect: () => void;
   onEdit: () => void;
   onRemove: () => void;
@@ -68,27 +82,29 @@ function StepRow({
         <Typography variant="body2" noWrap title={label} sx={{ fontWeight: 600, flex: 1, minWidth: 0 }}>
           {label}
         </Typography>
-        <Stack direction="row" sx={{ flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
-          <Tooltip title="Edit step">
-            <IconButton size="small" aria-label={`Edit ${label}`} onClick={onEdit} sx={{ fontSize: 14 }}>
-              ✎
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Delete step">
-            <span>
-              <IconButton
-                size="small"
-                color="error"
-                aria-label={`Delete ${label}`}
-                onClick={onRemove}
-                disabled={removing}
-                sx={{ fontSize: 13 }}
-              >
-                ✕
+        {!readOnly && (
+          <Stack direction="row" sx={{ flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+            <Tooltip title="Edit step">
+              <IconButton size="small" aria-label={`Edit ${label}`} onClick={onEdit} sx={{ fontSize: 14 }}>
+                ✎
               </IconButton>
-            </span>
-          </Tooltip>
-        </Stack>
+            </Tooltip>
+            <Tooltip title="Delete step">
+              <span>
+                <IconButton
+                  size="small"
+                  color="error"
+                  aria-label={`Delete ${label}`}
+                  onClick={onRemove}
+                  disabled={removing}
+                  sx={{ fontSize: 13 }}
+                >
+                  ✕
+                </IconButton>
+              </span>
+            </Tooltip>
+          </Stack>
+        )}
       </Stack>
       <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", flexWrap: "wrap", mt: 0.25, pl: "18px" }}>
         <StepStatusChip step={step} />
@@ -123,12 +139,16 @@ export default function PlaybookDetailView({
   playbook,
   linkedAlerts,
   transitions,
+  isOwner,
   initialEditStepId,
+  comments,
 }: {
   playbook: Playbook;
   linkedAlerts: Alert[];
   transitions: AlertTransition[];
+  isOwner: boolean;
   initialEditStepId?: number;
+  comments: ReactNode;
 }) {
   const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
@@ -143,6 +163,7 @@ export default function PlaybookDetailView({
   );
   const savePlaybook = useAsyncAction();
   const deletePlaybook = useAsyncAction();
+  const changeVisibility = useAsyncAction();
   const removingStep = usePendingId();
 
   const steps = orderStepsByFlow(linkedAlerts, transitions);
@@ -186,6 +207,12 @@ export default function PlaybookDetailView({
     if (!window.confirm(`Delete "${playbook.name}" and all its steps?`)) return;
     if (await deletePlaybook.run(() => removePlaybook(playbook.id))) {
       router.push("/playbooks");
+    }
+  }
+
+  async function handleVisibilityChange(isPublic: boolean) {
+    if (await changeVisibility.run(() => setPlaybookPublic(playbook.id, isPublic))) {
+      router.refresh();
     }
   }
 
@@ -245,15 +272,37 @@ export default function PlaybookDetailView({
           <Box sx={{ width: 220, flexShrink: 0 }}>
             <PlaybookProgress steps={linkedAlerts} compact />
           </Box>
-          <Stack direction="row" spacing={1} sx={{ flexShrink: 0 }}>
-            <Button size="small" variant="outlined" onClick={() => setEditOpen(true)}>
-              Edit
-            </Button>
-            <Button size="small" color="error" onClick={handleDeletePlaybook} disabled={deletePlaybook.pending}>
-              {deletePlaybook.pending ? "Deleting..." : "Delete"}
-            </Button>
-          </Stack>
+          {isOwner ? (
+            <Stack direction="row" spacing={1} sx={{ flexShrink: 0, alignItems: "center" }}>
+              <Tooltip title="Public playbooks are visible to the viewers you add on the Playbooks page">
+                <FormControlLabel
+                  label="Public"
+                  control={
+                    <Switch
+                      size="small"
+                      checked={playbook.is_public}
+                      disabled={changeVisibility.pending}
+                      onChange={(e) => handleVisibilityChange(e.target.checked)}
+                    />
+                  }
+                />
+              </Tooltip>
+              <Button size="small" variant="outlined" onClick={() => setEditOpen(true)}>
+                Edit
+              </Button>
+              <Button size="small" color="error" onClick={handleDeletePlaybook} disabled={deletePlaybook.pending}>
+                {deletePlaybook.pending ? "Deleting..." : "Delete"}
+              </Button>
+            </Stack>
+          ) : (
+            <Chip size="small" variant="outlined" label={`Shared by ${playbook.email} · view only`} />
+          )}
         </Stack>
+        {changeVisibility.error && (
+          <Typography color="error" variant="body2" sx={{ mt: 0.5 }}>
+            Couldn&apos;t change the visibility: {changeVisibility.error}
+          </Typography>
+        )}
         {deletePlaybook.error && (
           <Typography color="error" variant="body2" sx={{ mt: 0.5 }}>
             Couldn&apos;t delete the playbook: {deletePlaybook.error}
@@ -266,17 +315,19 @@ export default function PlaybookDetailView({
           Steps ({steps.length})
         </Typography>
         <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
-          In run order. Select one to add the next step after it.
+          {isOwner ? "In run order. Select one to add the next step after it." : "In run order."}
         </Typography>
-        <Button
-          variant="contained"
-          size="small"
-          fullWidth
-          onClick={() => setDialog({ mode: "add", sourceStepId: defaultSource?.id ?? null })}
-          sx={{ mb: 1.5 }}
-        >
-          {selectedStep ? `Add after ${formatAlertLabel(selectedStep)}` : "Add step"}
-        </Button>
+        {isOwner && (
+          <Button
+            variant="contained"
+            size="small"
+            fullWidth
+            onClick={() => setDialog({ mode: "add", sourceStepId: defaultSource?.id ?? null })}
+            sx={{ mb: 1.5 }}
+          >
+            {selectedStep ? `Add after ${formatAlertLabel(selectedStep)}` : "Add step"}
+          </Button>
+        )}
 
         {steps.length === 0 ? (
           <Typography variant="body2" color="text.secondary">
@@ -291,6 +342,7 @@ export default function PlaybookDetailView({
                 index={index + 1}
                 selected={selectedStep?.id === step.id}
                 removing={removingStep.pendingId === step.id}
+                readOnly={!isOwner}
                 onSelect={() => toggleStep(step)}
                 onEdit={() => setDialog({ mode: "edit", step })}
                 onRemove={() => handleRemoveStep(step)}
@@ -332,6 +384,8 @@ export default function PlaybookDetailView({
           </Paper>
         )}
       </Stack>
+
+      {comments}
 
       {dialog && (
         <StepDialog

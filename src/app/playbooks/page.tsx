@@ -2,7 +2,8 @@ import { Paper, Stack, Typography } from "@mui/material";
 import NewPlaybookChips from "@/frontend/components/NewPlaybookChips";
 import PageHeader from "@/frontend/components/PageHeader";
 import PlaybooksList from "@/frontend/components/PlaybooksList";
-import { getPlaybooks, getUser } from "@/backend/data";
+import ViewersButton from "@/frontend/components/ViewersButton";
+import { getPlaybooks, getSharedPlaybooks, getUser, getViewers } from "@/backend/data";
 import type { PlaybookWithSteps } from "@/shared/types";
 import { getErrorMessage } from "@/shared/format";
 
@@ -10,18 +11,20 @@ export default async function PlaybooksPage() {
   const user = await getUser();
 
   let playbooks: PlaybookWithSteps[] = [];
+  let shared: PlaybookWithSteps[] = [];
+  let viewers: string[] = [];
   let error: string | null = null;
   try {
-    playbooks = await getPlaybooks();
+    [playbooks, shared, viewers] = await Promise.all([getPlaybooks(), getSharedPlaybooks(), getViewers()]);
   } catch (err) {
     error = getErrorMessage(err);
   }
 
   return (
     <div className="flex flex-col flex-1 bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-col w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1">
+      <main className="flex flex-col w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 gap-3">
         <Paper component="section" elevation={1} sx={{ p: 4 }}>
-          <PageHeader title="My Playbooks" />
+          <PageHeader title="My Playbooks">{user?.email && !error && <ViewersButton viewers={viewers} />}</PageHeader>
           {!user?.email ? (
             <Typography color="text.secondary">Log in to see your playbooks.</Typography>
           ) : error ? (
@@ -35,6 +38,12 @@ export default async function PlaybooksPage() {
             <PlaybooksList playbooks={playbooks} header={<NewPlaybookChips userEmail={user.email} />} />
           )}
         </Paper>
+        {shared.length > 0 && (
+          <Paper component="section" elevation={1} sx={{ p: 4 }}>
+            <PageHeader section title="Shared with me" />
+            <PlaybooksList playbooks={shared} shared />
+          </Paper>
+        )}
       </main>
     </div>
   );

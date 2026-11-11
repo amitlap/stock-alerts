@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getPlaybook } from "@/backend/data";
+import { getPlaybook, getPlaybookComments, getUser } from "@/backend/data";
+import PlaybookComments from "@/frontend/components/PlaybookComments";
 import PlaybookDetailView from "@/frontend/components/PlaybookDetailView";
 
 export default async function PlaybookPage({
@@ -16,7 +17,8 @@ export default async function PlaybookPage({
   if (!detail) {
     notFound();
   }
-  const { playbook, steps, transitions } = detail;
+  const { playbook, steps, transitions, isOwner } = detail;
+  const [comments, user] = await Promise.all([getPlaybookComments(playbook.id), getUser()]);
 
   return (
     <div className="flex flex-col flex-1 bg-zinc-50 font-sans dark:bg-black">
@@ -28,7 +30,17 @@ export default async function PlaybookPage({
           playbook={playbook}
           linkedAlerts={steps}
           transitions={transitions}
-          initialEditStepId={edit ? Number(edit) : undefined}
+          isOwner={isOwner}
+          initialEditStepId={edit && isOwner ? Number(edit) : undefined}
+          comments={
+            <PlaybookComments
+              playbookId={playbook.id}
+              comments={comments}
+              currentEmail={user?.email}
+              isOwner={isOwner}
+              isPublic={playbook.is_public}
+            />
+          }
         />
       </main>
     </div>
