@@ -19,7 +19,7 @@ export function levelKind(template: PlanTemplate) {
 
 // How many recent trading days the levels come from (about 3 months), leaving out the last few so the
 // level isn't just today's price.
-const LEVEL_DAYS = 63;
+export const LEVEL_DAYS = 63;
 const LEVEL_SKIP_DAYS = 5;
 
 export type PriceLevel = { price: number; error: null } | { price: null; error: string };

@@ -5,27 +5,40 @@ import { useRouter } from "next/navigation";
 import { addPlaybook, getPriceLevel, getStockPrice } from "@/backend/actions";
 import { useAsyncAction } from "@/frontend/hooks";
 import { parsePrice } from "@/shared/format";
-import { buildPlan, isPlanTemplate, levelKind, PLAN_DEFAULTS, type PlanTemplate } from "@/shared/playbookTemplates";
+import {
+  buildPlan,
+  isPlanTemplate,
+  LEVEL_DAYS,
+  levelKind,
+  PLAN_DEFAULTS,
+  type PlanTemplate,
+} from "@/shared/playbookTemplates";
 import { formatAlertLabel } from "@/shared/steps";
 import type { PlannedStep, PlaybookType } from "@/shared/types";
 import type { ConditionDraft } from "./StepFields";
+import { STUDIES, type Study } from "./TradingViewWidget";
 
 // The stock every new-playbook form and its chart start on.
 const DEFAULT_STOCK = "SPY";
 
+const { sma, ema, donchian, rsi, macd, bollinger, atr, pivots } = STUDIES;
+
 // Each type's `hint` shows at the top of its dialog; `about` is the longer explanation behind its info
-// icon: what it does, and when it's useful. `studies` are the TradingView indicators on its chart.
+// icon: what it does, and when it's useful. `studies` are the TradingView indicators on its chart (in the
+// new-playbook dialog and on the playbook's page): the levels its alerts are built from, plus what tells
+// you whether to act when one fires. Volume always shows.
 export const PLAYBOOK_TEMPLATES: {
   value: PlaybookType;
   label: string;
   hint: string;
   about: string;
-  studies: string[];
+  studies: Study[];
   interval?: "D" | "W";
 }[] = [
   {
     value: "alert",
-    studies: ["MASimple@tv-basicstudies"],
+    // The 50- and 200-day averages: the levels most traders watch, so natural places for an alert.
+    studies: [sma(50), sma(200)],
     label: "Price alert",
     hint: "One alert on one stock.",
     about:
@@ -33,7 +46,8 @@ export const PLAYBOOK_TEMPLATES: {
   },
   {
     value: "custom",
-    studies: ["MASimple@tv-basicstudies"],
+    // A general-purpose view for any plan: the trend (50- and 200-day averages) and momentum (RSI).
+    studies: [sma(50), sma(200), rsi],
     label: "Custom playbook",
     hint: "Start with one step, then add the steps that follow.",
     about:
@@ -41,8 +55,9 @@ export const PLAYBOOK_TEMPLATES: {
   },
   {
     value: "stepUp",
-    // Is the uptrend real and still strong?
-    studies: ["MAExp@tv-basicstudies", "MACD@tv-basicstudies"],
+    // Is the uptrend still intact (price riding above a rising 21-day and 50-day average) and is its
+    // momentum still building (MACD above its signal line)? Rising volume on each step confirms it.
+    studies: [ema(21), sma(50), macd],
     label: "Buy as price rises",
     hint: "A ladder of buy alerts, each a set % above the one before. Each starts when the one before fires.",
     about:
@@ -50,8 +65,9 @@ export const PLAYBOOK_TEMPLATES: {
   },
   {
     value: "dip",
-    // How stretched and oversold is the fall?
-    studies: ["BB@tv-basicstudies", "RSI@tv-basicstudies"],
+    // How stretched the fall is (below the lower Bollinger band, RSI under 30), and whether the long-term
+    // uptrend that makes it a dip, not a downtrend, still holds (price near or above the 200-day average).
+    studies: [bollinger, sma(200), rsi],
     label: "Buy the dip",
     hint: "A ladder of buy alerts, each a set % below the one before. Each starts when the one before fires.",
     about:
@@ -59,8 +75,10 @@ export const PLAYBOOK_TEMPLATES: {
   },
   {
     value: "crash",
-    // Weekly, to compare with past market falls.
-    studies: ["RSI@tv-basicstudies"],
+    // Weekly, to compare with past market falls: the 40-week average (the 200-day) marks a bear market
+    // when the index stays below it, the 200-week average is near where past crashes bottomed, and a
+    // weekly RSI under 30 is rare panic selling.
+    studies: [sma(40), sma(200), rsi],
     interval: "W",
     label: "Market crash plan",
     hint: "Alerts when an index falls 10%, 20% and 30% from today, each a cue to put a third of your cash to work.",
@@ -69,8 +87,9 @@ export const PLAYBOOK_TEMPLATES: {
   },
   {
     value: "bracket",
-    // Daily range, to set a stop wider than normal swings.
-    studies: ["ATR@tv-basicstudies"],
+    // Recent swing lows (put the stop just under one) and swing highs (a natural target), and the
+    // average daily range (ATR), so the stop sits further away than the stock's normal swings.
+    studies: [pivots, atr],
     label: "Exit bracket",
     hint: "A stop loss below and a take profit above your entry price, both watching from the start.",
     about:
@@ -78,8 +97,9 @@ export const PLAYBOOK_TEMPLATES: {
   },
   {
     value: "breakout",
-    // Swing highs and the highest-high channel: where resistance sits.
-    studies: ["PivotPointsHighLow@tv-basicstudies", "DONCH@tv-basicstudies"],
+    // The channel's top is the 3-month high the alerts start from; the swing highs show how often the
+    // price was turned back there (more often makes a stronger breakout). A real break comes on high volume.
+    studies: [donchian(LEVEL_DAYS), pivots],
     label: "Resistance breakout",
     hint: "An alert when the price breaks 1% above resistance, then one when it pulls back to it (a lower-risk buy).",
     about:
@@ -87,8 +107,9 @@ export const PLAYBOOK_TEMPLATES: {
   },
   {
     value: "support",
-    // Swing lows, and whether it's oversold there.
-    studies: ["PivotPointsHighLow@tv-basicstudies", "RSI@tv-basicstudies"],
+    // The channel's bottom is the 3-month low the alerts start from, the swing lows show the earlier
+    // bounces there, and RSI shows whether it's oversold on reaching it (a bounce is likelier).
+    studies: [donchian(LEVEL_DAYS), pivots, rsi],
     label: "Support bounce",
     hint: "An alert when the price comes within 2% of support (a buy zone), then one if it breaks 3% below.",
     about:

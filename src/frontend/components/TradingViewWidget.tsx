@@ -2,6 +2,23 @@
 
 import { memo, useEffect, useRef } from "react";
 
+// A TradingView indicator: a built-in study's id, with its inputs when the defaults don't fit. Always an
+// object: the widget drops plain-string ids from a list that also has objects in it.
+export type Study = { id: string; inputs?: Record<string, number> };
+
+// The built-in studies the playbook charts use, at their default settings unless given a length (in bars,
+// so weeks on a weekly chart).
+export const STUDIES = {
+  sma: (length: number): Study => ({ id: "MASimple@tv-basicstudies", inputs: { length } }),
+  ema: (length: number): Study => ({ id: "MAExp@tv-basicstudies", inputs: { length } }),
+  donchian: (length: number): Study => ({ id: "DONCH@tv-basicstudies", inputs: { length } }),
+  rsi: { id: "RSI@tv-basicstudies" }, // 14
+  macd: { id: "MACD@tv-basicstudies" }, // 12, 26, 9
+  bollinger: { id: "BB@tv-basicstudies" }, // 20, 2 standard deviations
+  atr: { id: "ATR@tv-basicstudies" }, // 14
+  pivots: { id: "PivotPointsHighLow@tv-basicstudies" }, // swing highs and lows, labelled with their price
+} satisfies Record<string, Study | ((length: number) => Study)>;
+
 // TradingView's embeddable advanced chart for one symbol, optionally with indicators (`studies` must be
 // a stable array, since a new one reloads the chart) and with the symbol locked to `ticker`.
 function TradingViewWidget({
@@ -11,7 +28,7 @@ function TradingViewWidget({
   lockSymbol = false,
 }: {
   ticker: string;
-  studies?: string[];
+  studies?: Study[];
   interval?: "D" | "W";
   lockSymbol?: boolean;
 }) {
