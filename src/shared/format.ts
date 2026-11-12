@@ -10,6 +10,11 @@ export function parsePrice(value: string): number | null {
   return value.trim() !== "" && Number.isFinite(price) ? price : null;
 }
 
+// Shortens text longer than `max` characters, ending it with "…".
+export function truncate(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
+}
+
 export function priceChangeColor(change?: number | null) {
   return (change ?? 0) >= 0 ? "success.main" : "error.main";
 }

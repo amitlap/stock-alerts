@@ -45,10 +45,7 @@ export default function TelegramButton({ linked }: { linked: boolean }) {
 
   async function handleDisconnect() {
     setWaiting(false);
-    await action.run(async () => {
-      await disconnectTelegram();
-      router.refresh();
-    });
+    await action.run(disconnectTelegram);
   }
 
   return (

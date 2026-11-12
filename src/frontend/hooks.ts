@@ -28,18 +28,12 @@ export function useAsyncAction() {
 // Tracks which row (by id) has an action in flight, e.g. a per-row Delete button, and its last error.
 export function usePendingId() {
   const [pendingId, setPendingId] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { error, run: runAction } = useAsyncAction();
 
   async function run(id: number, action: () => Promise<unknown>) {
     setPendingId(id);
-    setError(null);
-    try {
-      await action();
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setPendingId(null);
-    }
+    await runAction(action);
+    setPendingId(null);
   }
 
   return { pendingId, error, run };

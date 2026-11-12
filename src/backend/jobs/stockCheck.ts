@@ -77,10 +77,7 @@ async function emailSteps(supabase: AdminClient, steps: WatchingStep[], prices: 
     const email = step.playbooks.email;
     byEmail.set(email, [...(byEmail.get(email) ?? []), step]);
   }
-  const chatIds = await getTelegramChatIds(supabase, [...byEmail.keys()]).catch((err) => {
-    console.error("Failed to load Telegram links:", err);
-    return new Map<string, number>();
-  });
+  const chatIds = await getTelegramChatIds(supabase, [...byEmail.keys()]);
 
   const sent: WatchingStep[] = [];
   const errors: string[] = [];

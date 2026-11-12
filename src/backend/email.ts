@@ -1,5 +1,6 @@
 import "server-only";
 import { Resend } from "resend";
+import { getErrorMessage } from "@/shared/format";
 
 const EMAIL_FROM = "alerts@stock-alerts-alpha.com";
 
@@ -15,7 +16,7 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
     return error?.message ?? null;
   } catch (err) {
     console.error(`Failed to send email to ${to}:`, err);
-    return err instanceof Error ? err.message : String(err);
+    return getErrorMessage(err);
   }
 }
 

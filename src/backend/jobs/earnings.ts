@@ -95,10 +95,7 @@ export async function sendEarningsReminders(siteUrl: string): Promise<EarningsRe
   const followers = await getFollowedStocks(supabase);
   const { today, until } = reminderWindow();
   const emails = [...new Set([...followers.values()].flatMap((playbooks) => [...playbooks.values()].map((f) => f.email)))];
-  const chatIds = await getTelegramChatIds(supabase, emails).catch((err) => {
-    console.error("Failed to load Telegram links:", err);
-    return new Map<string, number>();
-  });
+  const chatIds = await getTelegramChatIds(supabase, emails);
   const results: EarningsReminderResult[] = [];
 
   for (const [symbol, playbooks] of followers) {

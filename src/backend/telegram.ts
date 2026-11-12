@@ -2,6 +2,7 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import type { AdminClient } from "@/backend/supabase/admin";
 import { unwrap } from "@/backend/supabase/server";
+import { getErrorMessage } from "@/shared/format";
 
 // A "Connect Telegram" link stops working after this long.
 const LINK_TOKEN_TTL_MS = 60 * 60 * 1000;
@@ -29,7 +30,7 @@ async function callTelegram(method: string, body: object): Promise<string | null
     return error;
   } catch (err) {
     console.error(`Telegram ${method} failed:`, err);
-    return err instanceof Error ? err.message : String(err);
+    return getErrorMessage(err);
   }
 }
 
@@ -61,14 +62,18 @@ export function answerTelegramButton(callbackQueryId: string) {
   return callTelegram("answerCallbackQuery", { callback_query_id: callbackQueryId });
 }
 
-// The linked chat for each of these login emails (emails with no linked chat are left out).
+// The linked chat for each of these login emails (emails with no linked chat are left out). Never throws:
+// when the links can't be loaded, the alerts still go out by email.
 export async function getTelegramChatIds(supabase: AdminClient, emails: string[]): Promise<Map<string, number>> {
   if (emails.length === 0) return new Map();
 
-  const links = unwrap(
-    await supabase.from("telegram_links").select("email, chat_id").in("email", emails).not("chat_id", "is", null),
-  );
-  return new Map(links.map((link) => [link.email as string, link.chat_id as number]));
+  const { data, error } = await supabase
+    .from("telegram_links")
+    .select("email, chat_id")
+    .in("email", emails)
+    .not("chat_id", "is", null);
+  if (error) console.error("Failed to load Telegram links:", error.message);
+  return new Map((data ?? []).map((link) => [link.email as string, link.chat_id as number]));
 }
 
 // Starts linking `email`: stores a fresh one-time token and returns the t.me link that hands it to the bot.

@@ -95,100 +95,98 @@ export default async function Home() {
   }
 
   return (
-    <div className="flex flex-col flex-1 bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-col w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 gap-3">
-        {playbooksError && <Typography color="error">Failed to load playbooks: {playbooksError}</Typography>}
+    <main className="flex flex-col w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 gap-3">
+      {playbooksError && <Typography color="error">Failed to load playbooks: {playbooksError}</Typography>}
 
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-          <StatCard
-            label="Running playbooks"
-            value={
-              <>
-                {runningCount}
-                <Typography component="span" variant="h6" color="text.secondary">
-                  {" "}
-                  / {playbooks.length}
-                </Typography>
-              </>
-            }
-            caption="have a step watching"
-          />
-          <StatCard label="Watching steps" value={watching.length} caption={`across ${tickers.length} ${tickers.length === 1 ? "stock" : "stocks"}`} />
-          <StatCard
-            label="Near trigger"
-            value={nearCount}
-            valueColor={atTriggerCount > 0 ? "error.main" : nearCount > 0 ? "warning.main" : undefined}
-            caption={atTriggerCount > 0 ? `${atTriggerCount} at trigger now` : `within ${NEAR_TRIGGER_PERCENT}% of price`}
-          />
-          <StatCard
-            label="Steps done"
-            value={`${progress.done}/${progress.total}`}
-            caption={`${progress.waiting} waiting to start`}
-          >
-            <LinearProgress
-              variant="determinate"
-              value={progress.total === 0 ? 0 : (progress.done / progress.total) * 100}
-              sx={{ mt: 1, height: 4, borderRadius: 2 }}
-            />
-          </StatCard>
-        </Stack>
-
-        <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", md: "minmax(0, 2fr) minmax(0, 1fr)" } }}>
-          <Paper component="section" elevation={1} sx={{ p: 2.5 }}>
-            <PageHeader section title="Watching now">
-              <RunCheckButton />
-            </PageHeader>
-            <WatchingSteps items={watching} />
-          </Paper>
-          <Paper component="section" elevation={1} sx={{ p: 2.5, minWidth: 0 }}>
-            <PageHeader section title="Recent fires" />
-            <RecentFires items={recentFires} />
-          </Paper>
-        </Box>
-
-        <Paper component="section" elevation={1} sx={{ p: 2.5 }}>
-          <PageHeader section title="My Playbooks">
-            <ButtonLink href="/playbooks" size="small">
-              {playbooks.length === 0 ? "Create a playbook" : `View all (${playbooks.length})`}
-            </ButtonLink>
-          </PageHeader>
-          {playbooks.length === 0 ? (
-            <Typography color="text.secondary">No playbooks yet — create one on the Playbooks page.</Typography>
-          ) : (
-            <PlaybooksList playbooks={playbooks.slice(0, 5)} />
-          )}
-        </Paper>
-
-        <Box
-          sx={{
-            display: "grid",
-            gap: 2,
-            alignItems: "start",
-            gridTemplateColumns: { xs: "1fr", md: "minmax(0, 2fr) minmax(0, 1fr)" },
-          }}
+      <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+        <StatCard
+          label="Running playbooks"
+          value={
+            <>
+              {runningCount}
+              <Typography component="span" variant="h6" color="text.secondary">
+                {" "}
+                / {playbooks.length}
+              </Typography>
+            </>
+          }
+          caption="have a step watching"
+        />
+        <StatCard label="Watching steps" value={watching.length} caption={`across ${tickers.length} ${tickers.length === 1 ? "stock" : "stocks"}`} />
+        <StatCard
+          label="Near trigger"
+          value={nearCount}
+          valueColor={atTriggerCount > 0 ? "error.main" : nearCount > 0 ? "warning.main" : undefined}
+          caption={atTriggerCount > 0 ? `${atTriggerCount} at trigger now` : `within ${NEAR_TRIGGER_PERCENT}% of price`}
+        />
+        <StatCard
+          label="Steps done"
+          value={`${progress.done}/${progress.total}`}
+          caption={`${progress.waiting} waiting to start`}
         >
-          <Stack spacing={2} sx={{ minWidth: 0 }}>
-            {chartStocks.length > 0 && (
-              <Paper component="section" elevation={1} sx={{ p: 2.5 }}>
-                <PageHeader section title="Chart" />
-                <TickerChart stocks={chartStocks} />
-              </Paper>
-            )}
+          <LinearProgress
+            variant="determinate"
+            value={progress.total === 0 ? 0 : (progress.done / progress.total) * 100}
+            sx={{ mt: 1, height: 4, borderRadius: 2 }}
+          />
+        </StatCard>
+      </Stack>
+
+      <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", md: "minmax(0, 2fr) minmax(0, 1fr)" } }}>
+        <Paper component="section" elevation={1} sx={{ p: 2.5 }}>
+          <PageHeader section title="Watching now">
+            <RunCheckButton />
+          </PageHeader>
+          <WatchingSteps items={watching} />
+        </Paper>
+        <Paper component="section" elevation={1} sx={{ p: 2.5, minWidth: 0 }}>
+          <PageHeader section title="Recent fires" />
+          <RecentFires items={recentFires} />
+        </Paper>
+      </Box>
+
+      <Paper component="section" elevation={1} sx={{ p: 2.5 }}>
+        <PageHeader section title="My Playbooks">
+          <ButtonLink href="/playbooks" size="small">
+            {playbooks.length === 0 ? "Create a playbook" : `View all (${playbooks.length})`}
+          </ButtonLink>
+        </PageHeader>
+        {playbooks.length === 0 ? (
+          <Typography color="text.secondary">No playbooks yet — create one on the Playbooks page.</Typography>
+        ) : (
+          <PlaybooksList playbooks={playbooks.slice(0, 5)} />
+        )}
+      </Paper>
+
+      <Box
+        sx={{
+          display: "grid",
+          gap: 2,
+          alignItems: "start",
+          gridTemplateColumns: { xs: "1fr", md: "minmax(0, 2fr) minmax(0, 1fr)" },
+        }}
+      >
+        <Stack spacing={2} sx={{ minWidth: 0 }}>
+          {chartStocks.length > 0 && (
             <Paper component="section" elevation={1} sx={{ p: 2.5 }}>
-              <PageHeader section title="S&P 500 P/E (earnings multiple)" />
-              {valuationHistory ? (
-                <ValuationChart history={valuationHistory} />
-              ) : (
-                <Typography color="text.secondary">S&amp;P 500 P/E history is unavailable right now.</Typography>
-              )}
+              <PageHeader section title="Chart" />
+              <TickerChart stocks={chartStocks} />
             </Paper>
-          </Stack>
+          )}
           <Paper component="section" elevation={1} sx={{ p: 2.5 }}>
-            <PageHeader section title="S&P 500 Snapshot" />
-            <MarketValuationTable data={marketValuation} error={marketValuationError} history={valuationHistory} />
+            <PageHeader section title="S&P 500 P/E (earnings multiple)" />
+            {valuationHistory ? (
+              <ValuationChart history={valuationHistory} />
+            ) : (
+              <Typography color="text.secondary">S&amp;P 500 P/E history is unavailable right now.</Typography>
+            )}
           </Paper>
-        </Box>
-      </main>
-    </div>
+        </Stack>
+        <Paper component="section" elevation={1} sx={{ p: 2.5 }}>
+          <PageHeader section title="S&P 500 Snapshot" />
+          <MarketValuationTable data={marketValuation} error={marketValuationError} history={valuationHistory} />
+        </Paper>
+      </Box>
+    </main>
   );
 }

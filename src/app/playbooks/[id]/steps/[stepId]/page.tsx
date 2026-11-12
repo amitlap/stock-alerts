@@ -23,21 +23,19 @@ export default async function StepPage({
   ]);
 
   return (
-    <div className="flex flex-col flex-1 bg-zinc-50 font-sans dark:bg-black">
-      <main className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1">
-        <Link href={`/playbooks/${playbook.id}`} className="text-sm text-zinc-500 hover:underline">
-          ← Back to {playbook.name || "playbook"}
-        </Link>
-        <StepPageView
-          alert={step}
-          stock={stock}
-          candles={candles}
-          playbook={playbook}
-          steps={steps}
-          transitions={transitions}
-          isOwner={detail.isOwner}
-        />
-      </main>
-    </div>
+    <main className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1">
+      <Link href={`/playbooks/${playbook.id}`} className="text-sm text-zinc-500 hover:underline">
+        ← Back to {playbook.name || "playbook"}
+      </Link>
+      <StepPageView
+        alert={step}
+        stock={stock}
+        candles={candles}
+        playbook={playbook}
+        steps={steps}
+        transitions={transitions}
+        isOwner={detail.isOwner}
+      />
+    </main>
   );
 }

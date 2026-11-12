@@ -1,59 +1,9 @@
 "use client";
 
-import { FormControlLabel, MenuItem, Stack, Switch, TextField } from "@mui/material";
-import { ALERT_OPERATORS, type Alert, type AlertOperator } from "@/shared/types";
-import { formatAlertLabel } from "@/shared/steps";
+import { MenuItem, Stack, TextField } from "@mui/material";
+import { ALERT_OPERATORS, type AlertOperator } from "@/shared/types";
 
 export type ConditionDraft = { stock: string; operator: AlertOperator; price: string };
-
-export const EMPTY_CONDITION: ConditionDraft = { stock: "", operator: ">", price: "" };
-
-// Options for picking a playbook step in a select; values are string ids to match the form state.
-export function stepMenuItems(steps: (Pick<Alert, "stock" | "operator" | "price"> & { id: number })[]) {
-  return steps.map((step) => (
-    <MenuItem key={step.id} value={String(step.id)}>
-      {formatAlertLabel(step)}
-    </MenuItem>
-  ));
-}
-
-function OperatorField({
-  value,
-  onChange,
-}: {
-  value: AlertOperator;
-  onChange: (operator: AlertOperator) => void;
-}) {
-  return (
-    <TextField
-      label="Operator"
-      size="small"
-      select
-      fullWidth
-      value={value}
-      onChange={(e) => onChange(e.target.value as AlertOperator)}
-    >
-      {ALERT_OPERATORS.map((op) => (
-        <MenuItem key={op} value={op}>
-          {op}
-        </MenuItem>
-      ))}
-    </TextField>
-  );
-}
-
-function PriceField({ value, onChange }: { value: string; onChange: (price: string) => void }) {
-  return (
-    <TextField
-      label="Price"
-      size="small"
-      type="number"
-      fullWidth
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-    />
-  );
-}
 
 // Stock, operator and price on one row: "AAPL  >  200".
 export function ConditionFields({
@@ -72,17 +22,28 @@ export function ConditionFields({
         value={value.stock}
         onChange={(e) => onChange({ ...value, stock: e.target.value })}
       />
-      <OperatorField value={value.operator} onChange={(operator) => onChange({ ...value, operator })} />
-      <PriceField value={value.price} onChange={(price) => onChange({ ...value, price })} />
+      <TextField
+        label="Operator"
+        size="small"
+        select
+        fullWidth
+        value={value.operator}
+        onChange={(e) => onChange({ ...value, operator: e.target.value as AlertOperator })}
+      >
+        {ALERT_OPERATORS.map((op) => (
+          <MenuItem key={op} value={op}>
+            {op}
+          </MenuItem>
+        ))}
+      </TextField>
+      <TextField
+        label="Price"
+        size="small"
+        type="number"
+        fullWidth
+        value={value.price}
+        onChange={(e) => onChange({ ...value, price: e.target.value })}
+      />
     </Stack>
-  );
-}
-
-export function ActiveSwitch({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) {
-  return (
-    <FormControlLabel
-      control={<Switch checked={checked} onChange={(e) => onChange(e.target.checked)} />}
-      label="Active"
-    />
   );
 }

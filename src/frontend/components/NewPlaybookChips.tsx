@@ -6,15 +6,8 @@ import type { PlaybookType } from "@/shared/types";
 import FormDialog from "./FormDialog";
 import { ConditionFields } from "./StepFields";
 import TradingViewWidget from "./TradingViewWidget";
-import {
-  isPlanTemplate,
-  levelKind,
-  MAX_LADDER_STEPS,
-  PLAYBOOK_TEMPLATES,
-  type PlanDraft,
-  type PlanTemplate,
-  useNewPlaybook,
-} from "./useNewPlaybook";
+import { isPlanTemplate, levelKind, MAX_LADDER_STEPS, type PlanTemplate } from "@/shared/playbookTemplates";
+import { PLAYBOOK_TEMPLATES, type PlanDraft, useNewPlaybook } from "./useNewPlaybook";
 
 type Draft = ReturnType<typeof useNewPlaybook>;
 

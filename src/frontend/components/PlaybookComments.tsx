@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Box, Button, IconButton, Paper, Stack, TextField, Tooltip, Typography } from "@mui/material";
 import { addComment, removeComment } from "@/backend/actions";
 import { useAsyncAction, usePendingId } from "@/frontend/hooks";
@@ -22,23 +21,12 @@ export default function PlaybookComments({
   isOwner: boolean;
   isPublic: boolean;
 }) {
-  const router = useRouter();
   const [body, setBody] = useState("");
   const posting = useAsyncAction();
   const removing = usePendingId();
 
   async function handlePost() {
-    if (await posting.run(() => addComment(playbookId, body))) {
-      setBody("");
-      router.refresh();
-    }
-  }
-
-  function handleRemove(id: number) {
-    return removing.run(id, async () => {
-      await removeComment(id);
-      router.refresh();
-    });
+    if (await posting.run(() => addComment(playbookId, body))) setBody("");
   }
 
   return (
@@ -76,7 +64,7 @@ export default function PlaybookComments({
                       color="error"
                       aria-label="Delete comment"
                       disabled={removing.pendingId === comment.id}
-                      onClick={() => handleRemove(comment.id)}
+                      onClick={() => removing.run(comment.id, () => removeComment(comment.id))}
                       sx={{ fontSize: 13 }}
                     >
                       ✕

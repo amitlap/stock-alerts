@@ -19,40 +19,26 @@ export const getUser = cache(async () => {
   return user;
 });
 
-// The user's own playbooks, newest first, each with its steps (for progress in lists and the dashboard).
-// Filtered by owner because row-level security also lets through playbooks shared with the user.
-export async function getPlaybooks(): Promise<PlaybookWithSteps[]> {
+// Playbooks with their steps (for progress in lists and the dashboard), newest first. Row-level security
+// lets through the user's own playbooks and the public ones shared with them, so `owned` picks which.
+async function listPlaybooks(owned: boolean): Promise<PlaybookWithSteps[]> {
   const user = await getUser();
   if (!user?.email) return [];
 
   const supabase = await createClient();
-  const rows = unwrap(
-    await supabase
-      .from("playbooks")
-      .select(`${PLAYBOOK_COLUMNS}, alerts(${ALERT_COLUMNS})`)
-      .eq("email", user.email)
+  const query = supabase.from("playbooks").select(`${PLAYBOOK_COLUMNS}, alerts(${ALERT_COLUMNS})`);
+  return unwrap(
+    await (owned ? query.eq("email", user.email) : query.neq("email", user.email))
       .order("created_at", { ascending: false })
       .overrideTypes<PlaybookWithSteps[], { merge: false }>(),
   );
-  return rows ?? [];
 }
 
-// Other people's public playbooks that they added the user as a viewer of, newest first.
-export async function getSharedPlaybooks(): Promise<PlaybookWithSteps[]> {
-  const user = await getUser();
-  if (!user?.email) return [];
+// The user's own playbooks.
+export const getPlaybooks = () => listPlaybooks(true);
 
-  const supabase = await createClient();
-  const rows = unwrap(
-    await supabase
-      .from("playbooks")
-      .select(`${PLAYBOOK_COLUMNS}, alerts(${ALERT_COLUMNS})`)
-      .neq("email", user.email)
-      .order("created_at", { ascending: false })
-      .overrideTypes<PlaybookWithSteps[], { merge: false }>(),
-  );
-  return rows ?? [];
-}
+// Other people's public playbooks that they added the user as a viewer of.
+export const getSharedPlaybooks = () => listPlaybooks(false);
 
 // The emails the user has added as viewers of their public playbooks.
 export async function getViewers(): Promise<string[]> {

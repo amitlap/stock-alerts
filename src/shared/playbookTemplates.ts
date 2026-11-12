@@ -3,13 +3,18 @@
 import { ladderPrices } from "./steps";
 import type { Candle, PlannedStep, PlaybookType } from "./types";
 
+// The types whose steps are worked out from a few numbers (the others start from one step typed in).
 export type PlanTemplate = Exclude<PlaybookType, "alert" | "custom">;
 
+export function isPlanTemplate(type: PlaybookType): type is PlanTemplate {
+  return type !== "alert" && type !== "custom";
+}
+
 // The templates whose start price is a resistance or support level rather than the current price.
-export const LEVEL_TEMPLATES = { breakout: "resistance", support: "support" } as const;
+const LEVEL_KINDS: Partial<Record<PlanTemplate, "resistance" | "support">> = { breakout: "resistance", support: "support" };
 
 export function levelKind(template: PlanTemplate) {
-  return template === "breakout" || template === "support" ? LEVEL_TEMPLATES[template] : null;
+  return LEVEL_KINDS[template] ?? null;
 }
 
 // How many recent trading days the levels come from (about 3 months), leaving out the last few so the

@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { MenuItem, TextField } from "@mui/material";
+import { FormControlLabel, MenuItem, Switch, TextField } from "@mui/material";
 import type { Alert, AlertTransition } from "@/shared/types";
 import { addAlert, updateAlert } from "@/backend/actions";
 import { useAsyncAction } from "@/frontend/hooks";
 import { getStepWithDescendants } from "@/frontend/playbookFlow";
 import { parsePrice } from "@/shared/format";
 import { formatAlertLabel } from "@/shared/steps";
-import { ActiveSwitch, ConditionFields, stepMenuItems, type ConditionDraft } from "./StepFields";
+import { ConditionFields, type ConditionDraft } from "./StepFields";
 import FormDialog from "./FormDialog";
 
 // Not "", which MUI's select would show as empty instead of this option's label.
@@ -108,7 +108,11 @@ export default function StepDialog({
           }
         >
           <MenuItem value={START_ON_ITS_OWN}>Nothing — start on its own</MenuItem>
-          {stepMenuItems(sourceOptions)}
+          {sourceOptions.map((step) => (
+            <MenuItem key={step.id} value={String(step.id)}>
+              {formatAlertLabel(step)}
+            </MenuItem>
+          ))}
         </TextField>
       )}
       {source && (
@@ -129,7 +133,10 @@ export default function StepDialog({
         value={description}
         onChange={(e) => setDescription(e.target.value)}
       />
-      <ActiveSwitch checked={isActive} onChange={setIsActive} />
+      <FormControlLabel
+        control={<Switch checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />}
+        label="Active"
+      />
     </FormDialog>
   );
 }

@@ -25,6 +25,7 @@ import {
   type PriceLevel,
   type TemplateRequest,
 } from "@/shared/playbookTemplates";
+import { getErrorMessage, truncate } from "@/shared/format";
 import { formatAlertLabel, meetsCondition, parseAlertText } from "@/shared/steps";
 
 // The fields of a Telegram update this bot reads.
@@ -289,7 +290,7 @@ async function handleButton(
     await showResult(
       chat.id,
       botMessageId,
-      `Couldn't do that: ${escapeHtml(err instanceof Error ? err.message : String(err))}\n\nSend <b>${label}</b> again to retry.`,
+      `Couldn't do that: ${escapeHtml(getErrorMessage(err))}\n\nSend <b>${label}</b> again to retry.`,
     );
     return;
   }
@@ -301,8 +302,4 @@ async function handleButton(
 // one instead, so a tap never looks like it did nothing.
 async function showResult(chatId: number, botMessageId: number, html: string) {
   if (await editTelegramMessage(chatId, botMessageId, html)) await sendTelegram(chatId, html);
-}
-
-function truncate(text: string, max: number) {
-  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }

@@ -24,8 +24,16 @@ import {
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
+// Revalidating also refreshes the page that called the action, so the UI never needs router.refresh().
 function revalidateApp() {
   revalidatePath("/", "layout");
+}
+
+// The signed-in user's email, for actions that act on "my" rows (or must not run for logged-out visitors).
+async function requireEmail(): Promise<string> {
+  const user = await getUser();
+  if (!user?.email) throw new Error("Unauthorized");
+  return user.email;
 }
 
 // Makes `after` the only step that `stepId` starts after (keeping that link if it already exists);
@@ -76,7 +84,7 @@ export async function addPlaybook(playbook: NewPlaybook, steps: PlannedStep[], t
 
 // The live price of one stock, for "use current price" in the new-playbook form; null if unknown.
 export async function getStockPrice(symbol: string): Promise<number | null> {
-  if (!(await getUser())) throw new Error("Unauthorized");
+  await requireEmail();
   if (!symbol.trim()) return null;
 
   const [quote] = await getLatestStockPrices([symbol.trim().toUpperCase()]);
@@ -85,7 +93,7 @@ export async function getStockPrice(symbol: string): Promise<number | null> {
 
 // A stock's 3-month resistance or support, for "Find level" in the new-playbook form.
 export async function getPriceLevel(symbol: string, kind: "resistance" | "support"): Promise<PriceLevel> {
-  if (!(await getUser())) throw new Error("Unauthorized");
+  await requireEmail();
   const stock = symbol.trim().toUpperCase();
   if (!stock) return { price: null, error: "Fill in the stock first." };
 
@@ -119,32 +127,28 @@ export async function setPlaybookPublic(id: number, isPublic: boolean): Promise<
 // Lets `email` see all the signed-in user's public playbooks. Works whether or not that person has an
 // account yet, so this can't be used to find out who has one.
 export async function addViewer(email: string): Promise<void> {
-  const user = await getUser();
-  if (!user?.email) throw new Error("Unauthorized");
-
+  const me = await requireEmail();
   const viewer = email.trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(viewer)) throw new Error("Enter a valid email address");
-  if (viewer === user.email.toLowerCase()) throw new Error("You can already see your own playbooks");
+  if (viewer === me.toLowerCase()) throw new Error("You can already see your own playbooks");
 
   const supabase = await createClient();
   unwrap(
     await supabase
       .from("playbook_viewers")
-      .upsert({ owner_email: user.email, viewer_email: viewer }, { ignoreDuplicates: true }),
+      .upsert({ owner_email: me, viewer_email: viewer }, { ignoreDuplicates: true }),
   );
   revalidateApp();
 }
 
 export async function removeViewer(email: string): Promise<void> {
-  const user = await getUser();
-  if (!user?.email) throw new Error("Unauthorized");
-
+  const me = await requireEmail();
   const supabase = await createClient();
   unwrapChanged(
     await supabase
       .from("playbook_viewers")
       .delete()
-      .eq("owner_email", user.email)
+      .eq("owner_email", me)
       .eq("viewer_email", email)
       .select("viewer_email"),
     "viewer",
@@ -153,15 +157,13 @@ export async function removeViewer(email: string): Promise<void> {
 }
 
 export async function addComment(playbookId: number, body: string): Promise<void> {
-  const user = await getUser();
-  if (!user?.email) throw new Error("Unauthorized");
-
+  const email = await requireEmail();
   const text = body.trim();
   if (!text) throw new Error("Write a message first");
   if (text.length > MAX_COMMENT_LENGTH) throw new Error(`Keep it under ${MAX_COMMENT_LENGTH} characters`);
 
   const supabase = await createClient();
-  unwrap(await supabase.from("playbook_comments").insert({ playbook_id: playbookId, author_email: user.email, body: text }));
+  unwrap(await supabase.from("playbook_comments").insert({ playbook_id: playbookId, author_email: email, body: text }));
   revalidateApp();
 }
 
@@ -224,8 +226,7 @@ export async function removeAlert(id: number): Promise<void> {
 // "Run check now" on the dashboard: the same check the cron job runs. Only for logged-in users, since
 // it sends emails and advances playbooks for everyone.
 export async function runStockCheck(): Promise<{ fired: string[]; emailErrors: string[] }> {
-  if (!(await getUser())) throw new Error("Unauthorized");
-
+  await requireEmail();
   const result = await runStockCheckJob();
   revalidateApp();
   return result;
@@ -234,9 +235,7 @@ export async function runStockCheck(): Promise<{ fired: string[]; emailErrors: s
 // "Connect Telegram": returns the t.me link that opens the bot and links the chat to this login.
 // Only the server writes telegram_links, so it uses the service-role client for the signed-in user's row.
 export async function connectTelegram(): Promise<string> {
-  const user = await getUser();
-  if (!user?.email) throw new Error("Unauthorized");
-  return createTelegramLink(createAdminClient(), user.email);
+  return createTelegramLink(createAdminClient(), await requireEmail());
 }
 
 // Polled by the Connect Telegram button while it waits for the user to press Start in the bot.
@@ -245,14 +244,12 @@ export async function checkTelegramLinked(): Promise<boolean> {
 }
 
 export async function disconnectTelegram(): Promise<void> {
-  const user = await getUser();
-  if (!user?.email) throw new Error("Unauthorized");
-
+  const email = await requireEmail();
   unwrap(
     await createAdminClient()
       .from("telegram_links")
       .update({ chat_id: null, linked_at: null })
-      .eq("email", user.email),
+      .eq("email", email),
   );
   revalidateApp();
 }

@@ -37,7 +37,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
               <UserHeader userEmail={user?.email ?? null} telegramLinked={telegramLinked} />
             </div>
-            {children}
+            <div className="flex flex-col flex-1 bg-zinc-50 font-sans dark:bg-black">{children}</div>
           </ThemeProvider>
         </AppRouterCacheProvider>
       </body>

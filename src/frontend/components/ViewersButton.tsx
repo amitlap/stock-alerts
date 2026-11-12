@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   Button,
   Dialog,
@@ -21,20 +20,12 @@ import { useAsyncAction } from "@/frontend/hooks";
 
 // "Viewers": the friends who can see all of this user's public playbooks.
 export default function ViewersButton({ viewers }: { viewers: string[] }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const saving = useAsyncAction();
 
   async function handleAdd() {
-    if (await saving.run(() => addViewer(email))) {
-      setEmail("");
-      router.refresh();
-    }
-  }
-
-  async function handleRemove(viewer: string) {
-    if (await saving.run(() => removeViewer(viewer))) router.refresh();
+    if (await saving.run(() => addViewer(email))) setEmail("");
   }
 
   return (
@@ -91,7 +82,7 @@ export default function ViewersButton({ viewers }: { viewers: string[] }) {
                       color="error"
                       aria-label={`Remove ${viewer}`}
                       disabled={saving.pending}
-                      onClick={() => handleRemove(viewer)}
+                      onClick={() => saving.run(() => removeViewer(viewer))}
                       sx={{ fontSize: 13 }}
                     >
                       ✕

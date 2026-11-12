@@ -190,16 +190,8 @@ export default function PlaybookDetailView({
   }
 
   async function handleSaveDescription() {
-    const saved = await savePlaybook.run(() =>
-      updatePlaybook(playbook.id, {
-        name: name.trim(),
-        description: description.trim(),
-        email: playbook.email,
-      }),
-    );
-    if (saved) {
+    if (await savePlaybook.run(() => updatePlaybook(playbook.id, { name, description, email: playbook.email }))) {
       setEditOpen(false);
-      router.refresh();
     }
   }
 
@@ -208,19 +200,6 @@ export default function PlaybookDetailView({
     if (await deletePlaybook.run(() => removePlaybook(playbook.id))) {
       router.push("/playbooks");
     }
-  }
-
-  async function handleVisibilityChange(isPublic: boolean) {
-    if (await changeVisibility.run(() => setPlaybookPublic(playbook.id, isPublic))) {
-      router.refresh();
-    }
-  }
-
-  function handleRemoveStep(step: Alert) {
-    return removingStep.run(step.id, async () => {
-      await removeAlert(step.id);
-      router.refresh();
-    });
   }
 
   // Opened via ?edit=<stepId> (e.g. "Edit in playbook"): drop the parameter on close, so a reload
@@ -237,7 +216,6 @@ export default function PlaybookDetailView({
       setChosenSymbol(step.stock);
     }
     closeDialog();
-    router.refresh();
   }
 
   return (
@@ -282,7 +260,7 @@ export default function PlaybookDetailView({
                       size="small"
                       checked={playbook.is_public}
                       disabled={changeVisibility.pending}
-                      onChange={(e) => handleVisibilityChange(e.target.checked)}
+                      onChange={(e) => changeVisibility.run(() => setPlaybookPublic(playbook.id, e.target.checked))}
                     />
                   }
                 />
@@ -345,7 +323,7 @@ export default function PlaybookDetailView({
                 readOnly={!isOwner}
                 onSelect={() => toggleStep(step)}
                 onEdit={() => setDialog({ mode: "edit", step })}
-                onRemove={() => handleRemoveStep(step)}
+                onRemove={() => removingStep.run(step.id, () => removeAlert(step.id))}
               />
             ))}
           </Stack>

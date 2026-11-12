@@ -17,7 +17,7 @@ import {
 } from "@xyflow/react";
 import type { Alert, AlertTransition } from "@/shared/types";
 import { getStepDepths, orderStepsByFlow } from "@/frontend/playbookFlow";
-import { formatTimeAgo } from "@/shared/format";
+import { formatTimeAgo, truncate } from "@/shared/format";
 import { formatAlertLabel, getStepStatus, STEP_STATUS_LABELS, type StepStatus } from "@/shared/steps";
 
 import { SELECTED_STEP_STYLE } from "./stepSelection";
@@ -38,11 +38,6 @@ const NODE_WIDTH = 210;
 // Wide enough between columns for the "why" label on the links; longer labels are shortened.
 const COLUMN_GAP = 200;
 const MAX_LABEL_LENGTH = 30;
-
-function shortLabel(text: string | null | undefined) {
-  if (!text) return undefined;
-  return text.length > MAX_LABEL_LENGTH ? `${text.slice(0, MAX_LABEL_LENGTH - 1).trimEnd()}…` : text;
-}
 const ROW_HEIGHT = 110;
 
 // Same colours as the step status chips: grey waiting, blue watching, green done.
@@ -100,7 +95,7 @@ function buildGraph(
         source: String(transition.source_alert_id),
         target: String(transition.target_alert_id),
         type: "smoothstep",
-        label: shortLabel(transition.explanation),
+        label: transition.explanation ? truncate(transition.explanation, MAX_LABEL_LENGTH) : undefined,
         labelStyle: { fontSize: 12, fill: "#3f3f46" },
         labelBgStyle: { fill: "#ffffff", fillOpacity: 0.95 },
         labelBgPadding: [6, 3] as [number, number],

@@ -21,30 +21,28 @@ export default async function PlaybooksPage() {
   }
 
   return (
-    <div className="flex flex-col flex-1 bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-col w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 gap-3">
-        <Paper component="section" elevation={1} sx={{ p: 4 }}>
-          <PageHeader title="My Playbooks">{user?.email && !error && <ViewersButton viewers={viewers} />}</PageHeader>
-          {!user?.email ? (
-            <Typography color="text.secondary">Log in to see your playbooks.</Typography>
-          ) : error ? (
-            <Typography color="error">Failed to load playbooks: {error}</Typography>
-          ) : playbooks.length === 0 ? (
-            <Stack spacing={2}>
-              <NewPlaybookChips userEmail={user.email} />
-              <Typography color="text.secondary">No playbooks yet — pick a type above to create one.</Typography>
-            </Stack>
-          ) : (
-            <PlaybooksList playbooks={playbooks} header={<NewPlaybookChips userEmail={user.email} />} />
-          )}
-        </Paper>
-        {shared.length > 0 && (
-          <Paper component="section" elevation={1} sx={{ p: 4 }}>
-            <PageHeader section title="Shared with me" />
-            <PlaybooksList playbooks={shared} shared />
-          </Paper>
+    <main className="flex flex-col w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 gap-3">
+      <Paper component="section" elevation={1} sx={{ p: 4 }}>
+        <PageHeader title="My Playbooks">{user?.email && !error && <ViewersButton viewers={viewers} />}</PageHeader>
+        {!user?.email ? (
+          <Typography color="text.secondary">Log in to see your playbooks.</Typography>
+        ) : error ? (
+          <Typography color="error">Failed to load playbooks: {error}</Typography>
+        ) : playbooks.length === 0 ? (
+          <Stack spacing={2}>
+            <NewPlaybookChips userEmail={user.email} />
+            <Typography color="text.secondary">No playbooks yet — pick a type above to create one.</Typography>
+          </Stack>
+        ) : (
+          <PlaybooksList playbooks={playbooks} header={<NewPlaybookChips userEmail={user.email} />} />
         )}
-      </main>
-    </div>
+      </Paper>
+      {shared.length > 0 && (
+        <Paper component="section" elevation={1} sx={{ p: 4 }}>
+          <PageHeader section title="Shared with me" />
+          <PlaybooksList playbooks={shared} shared />
+        </Paper>
+      )}
+    </main>
   );
 }

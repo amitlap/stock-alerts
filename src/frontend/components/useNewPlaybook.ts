@@ -5,12 +5,10 @@ import { useRouter } from "next/navigation";
 import { addPlaybook, getPriceLevel, getStockPrice } from "@/backend/actions";
 import { useAsyncAction } from "@/frontend/hooks";
 import { parsePrice } from "@/shared/format";
-import { buildPlan, levelKind, PLAN_DEFAULTS, type PlanTemplate } from "@/shared/playbookTemplates";
+import { buildPlan, isPlanTemplate, levelKind, PLAN_DEFAULTS, type PlanTemplate } from "@/shared/playbookTemplates";
 import { formatAlertLabel } from "@/shared/steps";
 import type { PlannedStep, PlaybookType } from "@/shared/types";
-import { EMPTY_CONDITION } from "./StepFields";
-
-export { levelKind, MAX_LADDER_STEPS, type PlanTemplate } from "@/shared/playbookTemplates";
+import type { ConditionDraft } from "./StepFields";
 
 // The stock every new-playbook form and its chart start on.
 const DEFAULT_STOCK = "SPY";
@@ -98,10 +96,6 @@ export const PLAYBOOK_TEMPLATES: {
   },
 ];
 
-export function isPlanTemplate(template: PlaybookType): template is PlanTemplate {
-  return template !== "alert" && template !== "custom";
-}
-
 export type PlanDraft = {
   stock: string;
   startPrice: string;
@@ -138,7 +132,7 @@ export function useNewPlaybook(userEmail: string, template: PlaybookType) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [condition, setCondition] = useState({ ...EMPTY_CONDITION, stock: DEFAULT_STOCK });
+  const [condition, setCondition] = useState<ConditionDraft>({ stock: DEFAULT_STOCK, operator: ">", price: "" });
   const [plan, setPlan] = useState(EMPTY_PLAN);
   const save = useAsyncAction();
   const lookup = useAsyncAction();
