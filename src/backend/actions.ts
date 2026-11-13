@@ -3,6 +3,9 @@
 // Every change the UI makes. Each runs as the signed-in user, so row-level security keeps it to
 // their own playbooks, and then refreshes every page (they all show the same data).
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
+import { after } from "next/server";
+import { notifyNewComment } from "@/backend/commentNotifications";
 import { ALERT_COLUMNS, getUser, isTelegramLinked, PLAYBOOK_COLUMNS } from "@/backend/data";
 import { runStockCheck as runStockCheckJob } from "@/backend/jobs/stockCheck";
 import { createPlaybook, toAlertFields, toPlaybookFields } from "@/backend/playbooks";
@@ -164,6 +167,12 @@ export async function addComment(playbookId: number, body: string): Promise<void
 
   const supabase = await createClient();
   unwrap(await supabase.from("playbook_comments").insert({ playbook_id: playbookId, author_email: email, body: text }));
+
+  // Tells the others on the playbook once the response is sent, so posting doesn't wait on email.
+  // Links point to the site the comment was posted on.
+  const request = await headers();
+  const siteUrl = request.get("origin") ?? `https://${request.get("host")}`;
+  after(() => notifyNewComment({ playbookId, author: email, body: text }, siteUrl));
   revalidateApp();
 }
 
